@@ -21,44 +21,51 @@ port-runner: exercise and validate your
 struct device_opts
 {
 	const char *name;
-	const char *speed;
+	unsigned int speed;
 };
 
 /* Globals */
-#define TOSTR(X) #X
-const char *g_valid_speeds[] =
+struct baud_entry
 {
-	TOSTR(B50),
-	TOSTR(B75),
-	TOSTR(B110),
-	TOSTR(B134),
-	TOSTR(B150),
-	TOSTR(B200),
-	TOSTR(B300),
-	TOSTR(B600),
-	TOSTR(B1200),
-	TOSTR(B1800),
-	TOSTR(B2400),
-	TOSTR(B4800),
-	TOSTR(B9600),
-	TOSTR(B19200),
-	TOSTR(B38400),
-	TOSTR(B57600),
-	TOSTR(B115200),
-	TOSTR(B230400),
-	TOSTR(B460800),
-	TOSTR(B500000),
-	TOSTR(B576000),
-	TOSTR(B921600),
-	TOSTR(B1000000),
-	TOSTR(B1152000),
-	TOSTR(B1500000),
-	TOSTR(B2000000),
-	TOSTR(B2500000),
-	TOSTR(B3000000),
-	TOSTR(B3500000),
-	TOSTR(B4000000),
-	"" // empty string = end of list
+	char str[10];
+	unsigned int val;
+};
+#define TOSTR(X) #X
+#define TOENTRY(X) {#X, X}
+
+struct baud_entry g_valid_speeds[] =
+{
+	TOENTRY(B50),
+	TOENTRY(B75),
+	TOENTRY(B110),
+	TOENTRY(B134),
+	TOENTRY(B150),
+	TOENTRY(B200),
+	TOENTRY(B300),
+	TOENTRY(B600),
+	TOENTRY(B1200),
+	TOENTRY(B1800),
+	TOENTRY(B2400),
+	TOENTRY(B4800),
+	TOENTRY(B9600),
+	TOENTRY(B19200),
+	TOENTRY(B38400),
+	TOENTRY(B57600),
+	TOENTRY(B115200),
+	TOENTRY(B230400),
+	TOENTRY(B460800),
+	TOENTRY(B500000),
+	TOENTRY(B576000),
+	TOENTRY(B921600),
+	TOENTRY(B1000000),
+	TOENTRY(B1152000),
+	TOENTRY(B1500000),
+	TOENTRY(B2000000),
+	TOENTRY(B2500000),
+	TOENTRY(B3000000),
+	TOENTRY(B3500000),
+	TOENTRY(B4000000),
+	{"", 0}	// empty string = end of list
 };
 
 const char *g_prog_name;
@@ -142,15 +149,16 @@ void *rx_data(void *data)
 	g_fd_rx = -1;
 }
 
-const char *baud_lookup(const char *speed)
+unsigned int baud_lookup(const char *speed)
 {
 	unsigned int index = 0;
-	while (strlen(g_valid_speeds[index]) && strncasecmp(speed, g_valid_speeds[index], strlen(g_valid_speeds[index])))
+	while (strlen(g_valid_speeds[index].str) &&
+			strncasecmp(speed, g_valid_speeds[index].str, strlen(g_valid_speeds[index].str)))
 	{
 		index++;
 	}
 
-	return g_valid_speeds[index];
+	return g_valid_speeds[index].val;
 }
 
 int parse_device_opts(const char *device_str, struct device_opts *device_opts)
@@ -170,7 +178,7 @@ int parse_device_opts(const char *device_str, struct device_opts *device_opts)
 				break;
 			case 1: // baudrate
 				device_opts->speed = baud_lookup(arg_ptr);
-				if (!strlen(device_opts->speed))
+				if (!device_opts->speed)
 				{
 					errorout("invalid baud rate '%s'\n", arg_ptr);
 					ret_val = -1;
@@ -218,8 +226,8 @@ int open_serial(const struct device_opts *device_opts, int flags)
 
 	struct termios opts;
 	tcgetattr(fd, &opts);
-	cfsetispeed(&opts, B115200);	// TODO: don't hardcode the speed, yo...
-	cfsetospeed(&opts, B115200);	// TODO: don't hardcode the speed, yo...
+	cfsetispeed(&opts, device_opts->speed);
+	cfsetospeed(&opts, device_opts->speed);
 	opts.c_cflag |= CLOCAL;
 	opts.c_cflag |= CREAD;
 	opts.c_cflag &= ~CRTSCTS;
@@ -243,7 +251,7 @@ int main(int argc, char *argv[])
 	int ret;
 	int exit_val = 0;
 
-	while ((opt = getopt(argc, argv, "t:r:f:d:")) != -1)
+	while ((opt = getopt(argc, argv, "t:r:f:d:h")) != -1)
 	{
 		switch(opt)
 		{
@@ -272,6 +280,10 @@ int main(int argc, char *argv[])
 					goto done;
 				}
 				break;
+			case 'h':	// Help
+				usage();
+				goto done;
+				break;
 			default:
 				// unrecognized option
 				usage();
@@ -281,10 +293,26 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	// Verify we don't have different speeds specified (but technically we could support this)
+	if (!tx_device.speed || !rx_device.speed)
+	{
+		errorout("missing baud rate for %s device\n", (!tx_device.speed)?"TX":"RX");
+		usage();
+		exit_val = -2;
+		goto done;
+	}
+	else if (tx_device.speed != rx_device.speed)
+	{
+		errorout("differing baud rates specified");
+		exit_val = -2;
+		goto done;
+	}
+
 	// Open TX device...
 	g_fd_tx = open_serial(&tx_device, O_WRONLY | O_NOCTTY | O_NDELAY);
 	if (g_fd_tx < 0)
 	{
+		exit_val = -3;
 		goto done;
 	}
 
@@ -293,6 +321,7 @@ int main(int argc, char *argv[])
 	//g_fd_rx = open_serial(&rx_device, O_RDONLY | O_NOCTTY | O_NDELAY | O_NONBLOCK);
 	if (g_fd_rx < 0)
 	{
+		exit_val = -3;
 		goto done;
 	}
 
@@ -303,7 +332,7 @@ int main(int argc, char *argv[])
 	if (fd_data < 0)
 	{
 		errorout("could not locate data file '%s': %s (%d)\n", data_filename, strerror(errno), errno);
-		exit_val = -2;
+		exit_val = -4;
 		goto done;
 	}
 	struct stat file_stat;
@@ -311,7 +340,7 @@ int main(int argc, char *argv[])
 	if (ret < 0)
 	{
 		errorout("could not get stats on data file '%s': %s (%d)\n", data_filename, strerror(errno), errno);
-		exit_val = -3;
+		exit_val = -5;
 		goto done;
 	}
 	g_data_out_len = file_stat.st_size;
@@ -319,7 +348,7 @@ int main(int argc, char *argv[])
 	if (!g_data_out)
 	{
 		errorout("failed to allocate memory: %s (%d)\n", strerror(errno), errno);
-		exit_val = -4;
+		exit_val = -6;
 		goto done;
 	}
 	int read_bytes = 0;
