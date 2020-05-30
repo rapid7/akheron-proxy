@@ -10,7 +10,7 @@ Requires `make` and `gcc` are present on a system (originally built-and-tested o
 
 ### Examples
 ```
-$ sudo ./port-runner -t /dev/ttyUSB0 -r /dev/ttyUSB1 -f qwe -d 100
+$ sudo ./port-runner -t /dev/ttyUSB0,B115200 -r /dev/ttyUSB1 -f qwe -d 100
 Loaded 4 bytes of data from 'qwe', leaving 100 milliseconds between sends...
 Sending traffic.................................................................................^C
 

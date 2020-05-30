@@ -21,7 +21,7 @@ port-runner: exercise and validate your
 struct device_opts
 {
 	const char *name;
-	unsigned int speed;
+	unsigned int baud_val;
 };
 
 /* Globals */
@@ -30,10 +30,11 @@ struct baud_entry
 	char str[10];
 	unsigned int val;
 };
+
 #define TOSTR(X) #X
 #define TOENTRY(X) {#X, X}
 
-struct baud_entry g_valid_speeds[] =
+struct baud_entry g_valid_bauds[] =
 {
 	TOENTRY(B50),
 	TOENTRY(B75),
@@ -149,16 +150,16 @@ void *rx_data(void *data)
 	g_fd_rx = -1;
 }
 
-unsigned int baud_lookup(const char *speed)
+unsigned int baud_lookup(const char *baud_str)
 {
 	unsigned int index = 0;
-	while (strlen(g_valid_speeds[index].str) &&
-			strncasecmp(speed, g_valid_speeds[index].str, strlen(g_valid_speeds[index].str)))
+	while (strlen(g_valid_bauds[index].str) &&
+			strncasecmp(baud_str, g_valid_bauds[index].str, strlen(g_valid_bauds[index].str)))
 	{
 		index++;
 	}
 
-	return g_valid_speeds[index].val;
+	return g_valid_bauds[index].val;
 }
 
 int parse_device_opts(const char *device_str, struct device_opts *device_opts)
@@ -177,8 +178,8 @@ int parse_device_opts(const char *device_str, struct device_opts *device_opts)
 				device_opts->name = arg_ptr;
 				break;
 			case 1: // baudrate
-				device_opts->speed = baud_lookup(arg_ptr);
-				if (!device_opts->speed)
+				device_opts->baud_val = baud_lookup(arg_ptr);
+				if (!device_opts->baud_val)
 				{
 					errorout("invalid baud rate '%s'\n", arg_ptr);
 					ret_val = -1;
@@ -226,8 +227,8 @@ int open_serial(const struct device_opts *device_opts, int flags)
 
 	struct termios opts;
 	tcgetattr(fd, &opts);
-	cfsetispeed(&opts, device_opts->speed);
-	cfsetospeed(&opts, device_opts->speed);
+	cfsetispeed(&opts, device_opts->baud_val);
+	cfsetospeed(&opts, device_opts->baud_val);
 	opts.c_cflag |= CLOCAL;
 	opts.c_cflag |= CREAD;
 	opts.c_cflag &= ~CRTSCTS;
@@ -293,17 +294,27 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// Verify we don't have different speeds specified (but technically we could support this)
-	if (!tx_device.speed || !rx_device.speed)
+	// Ensure we have a least one port baud rate setting provided...
+	if (tx_device.baud_val && !rx_device.baud_val)
 	{
-		errorout("missing baud rate for %s device\n", (!tx_device.speed)?"TX":"RX");
+		rx_device.baud_val = tx_device.baud_val;
+	}
+	else if (!tx_device.baud_val && rx_device.baud_val)
+	{
+		tx_device.baud_val = rx_device.baud_val;
+	}
+	else if (!tx_device.baud_val || !rx_device.baud_val)
+	{
+		errorout("missing baud rate\n");
 		usage();
 		exit_val = -2;
 		goto done;
 	}
-	else if (tx_device.speed != rx_device.speed)
+
+	// Verify we don't have different baud rates specified (but technically we could support this)
+	if (tx_device.baud_val != rx_device.baud_val)
 	{
-		errorout("differing baud rates specified");
+		errorout("differing baud rates specified\n");
 		exit_val = -2;
 		goto done;
 	}
