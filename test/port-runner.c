@@ -1,7 +1,7 @@
 /***************************************
 
 port-runner: exercise and validate your
-  serial port traffic!
+		serial port traffic!
 
 ***************************************/
 
@@ -17,14 +17,17 @@ port-runner: exercise and validate your
 #include <pthread.h>
 #include <signal.h>
 
-/* Struct and data definitions */
-struct device_opts
+/*** Struct and data definitions ***/
+struct serial_device_opts
 {
 	const char *name;
 	unsigned int baud_val;
 };
 
-/* Globals */
+/*** Globals ***/
+// Program name (for usage() function)
+const char *g_prog_name;
+
 struct baud_entry
 {
 	char str[10];
@@ -34,6 +37,7 @@ struct baud_entry
 #define TOSTR(X) #X
 #define TOENTRY(X) {#X, X}
 
+// Valid baud rates
 struct baud_entry g_valid_bauds[] =
 {
 	TOENTRY(B50),
@@ -69,8 +73,7 @@ struct baud_entry g_valid_bauds[] =
 	{"", 0}	// empty string = end of list
 };
 
-const char *g_prog_name;
-
+// File descriptors for the serial port transmit and receive devices
 int g_fd_tx = -1;
 int g_fd_rx = -1;
 
@@ -79,57 +82,66 @@ bool g_active;
 unsigned char *g_data_out;
 size_t g_data_out_len;
 unsigned int g_sent_cnt = 0;
+unsigned int g_goodcompare_cnt = 0;
 unsigned int g_miscompare_cnt = 0;
 
 unsigned int g_delay;
 
 #define errorout(...) fprintf(stderr, "ERROR: " __VA_ARGS__)
 
+/*** Functions ***/
+
+// Usage
 void usage(void)
 {
-	fprintf(stdout, "Usage: %s -t <transmit device> -r <receive device> -f <data filename> -d <delay in ms between sends>\n",
+	fprintf(stdout, "Usage: %s -t <transmit device>,<baud> -r <receive device>,<baud> -f <data filename> -d <delay in ms between sends>\n",
+			g_prog_name);
+	fprintf(stdout, "example: %s -t /dev/ttyUSB0,b115200 -r /dev/ttyUSB1,b115200 -f mydata -d 200\n",
 			g_prog_name);
 }
 
+// Signal handler to stop the pthreads
 void stop_it(int signum)
 {
 	g_active = false;
-	fcntl(g_fd_rx, F_SETFL, FNDELAY);
 }
 
+// Function we launch as a pthread for TRANSMITTING data on a serial port device
 void *tx_data(void *data)
 {
 	while (g_active)
 	{
-		//printf("TXTHREAD\n");
 		write(g_fd_tx, g_data_out, g_data_out_len);
 		g_sent_cnt++;
 		printf(".");
 		fflush(stdout);
 		usleep(g_delay * 1000);
 	}
-	// printf("leaving TX\n");
 	close(g_fd_tx);
 	g_fd_tx = -1;
 }
 
+// Function we launch as a pthread for RECEIVING data on a serial port device
 void *rx_data(void *data)
 {
 	unsigned char data_in[100];
 	unsigned int data_out_index = 0;
 	int ret;
 
-	//fcntl(g_fd_rx, F_SETFL, 0);
 	while (g_active)
 	{
 		ret = read(g_fd_rx, data_in, sizeof(data_in));
 		if (ret < 1)
 		{
-			// errorout("RX error on read: %s (%d)\n", strerror(errno), errno);
+			// Ignore EAGAIN for non-blocking reads, just means there was no data present...
+			if (errno != EAGAIN)
+			{
+				errorout("RX error on read: %s (%d)\n", strerror(errno), errno);
+			}
 		}
 		else if (ret > 0)
 		{
-			// printf("RX saw %d bytes.... '%c'\n", ret, data_in[0]);
+			// Compare the data we read in...
 			if (memcmp(data_in, &g_data_out[data_out_index], ret))
 			{
 				g_miscompare_cnt++;
@@ -140,16 +152,17 @@ void *rx_data(void *data)
 				data_out_index += ret;
 				if (data_out_index >= g_data_out_len)
 				{
+					g_goodcompare_cnt++;
 					data_out_index -= g_data_out_len;
 				}
 			}
 		}
 	}
-	// printf("leaving RX\n");
 	close(g_fd_rx);
 	g_fd_rx = -1;
 }
 
+// Lookup a string representation of baudrate and, if valid, return the termios value for it
 unsigned int baud_lookup(const char *baud_str)
 {
 	unsigned int index = 0;
@@ -162,7 +175,8 @@ unsigned int baud_lookup(const char *baud_str)
 	return g_valid_bauds[index].val;
 }
 
-int parse_device_opts(const char *device_str, struct device_opts *device_opts)
+// Parse options for a serial port into a serial_device_opts struct
+int parse_serial_device_opts(const char *device_str, struct serial_device_opts *device_opts)
 {
 	char *d_str, *arg_ptr;
 	int arg_pos = 0;
@@ -197,7 +211,8 @@ int parse_device_opts(const char *device_str, struct device_opts *device_opts)
 	return ret_val;
 }
 
-int free_device_opts(struct device_opts *device_opts)
+// Free memory/resources associated with a serial_device_opts structure
+int free_serial_device_opts(struct serial_device_opts *device_opts)
 {
 	if (device_opts->name)
 	{
@@ -207,7 +222,8 @@ int free_device_opts(struct device_opts *device_opts)
 	return 0;
 }
 
-int open_serial(const struct device_opts *device_opts, int flags)
+// Open a serial port device and set appropriate flags/settings
+int open_serial(const struct serial_device_opts *device_opts, int flags)
 {
 	int fd = -1;
 
@@ -241,29 +257,31 @@ done:
 	return fd;
 }
 
+// Main...!
 int main(int argc, char *argv[])
 {
 	pthread_t tx_thread, rx_thread;
 	int opt;
-	struct device_opts tx_device = { 0 };
-	struct device_opts rx_device = { 0 };
+	struct serial_device_opts tx_device = { 0 };
+	struct serial_device_opts rx_device = { 0 };
 	const char *data_filename = NULL;
 	g_prog_name = argv[0];
 	int ret;
 	int exit_val = 0;
 
+	// Parse cmdline options...
 	while ((opt = getopt(argc, argv, "t:r:f:d:h")) != -1)
 	{
 		switch(opt)
 		{
 			case 't':	// Transmit port
-				if (parse_device_opts(optarg, &tx_device))
+				if (parse_serial_device_opts(optarg, &tx_device))
 				{
 					goto done;
 				}
 				break;
 			case 'r':	// Receive port
-				if (parse_device_opts(optarg, &rx_device))
+				if (parse_serial_device_opts(optarg, &rx_device))
 				{
 					goto done;
 				}
@@ -328,17 +346,15 @@ int main(int argc, char *argv[])
 	}
 
 	// Open RX device...
-	g_fd_rx = open_serial(&rx_device, O_RDONLY | O_NOCTTY | O_NDELAY);
-	//g_fd_rx = open_serial(&rx_device, O_RDONLY | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+	//g_fd_rx = open_serial(&rx_device, O_RDONLY | O_NOCTTY | O_NDELAY);
+	g_fd_rx = open_serial(&rx_device, O_RDONLY | O_NOCTTY | O_NDELAY | O_NONBLOCK);
 	if (g_fd_rx < 0)
 	{
 		exit_val = -3;
 		goto done;
 	}
 
-	/***********************
-	 * Load in file contents
-	 **********************/
+	// Load in data file contents...
 	int fd_data = open(data_filename, O_RDONLY);
 	if (fd_data < 0)
 	{
@@ -371,23 +387,28 @@ int main(int argc, char *argv[])
 	close(fd_data);
 	fd_data = -1;
 
-	printf("Loaded %u bytes of data from '%s', leaving %u milliseconds between sends...\n",
+	printf("Loaded %u bytes of data from '%s', using a delay of %u milliseconds between sends.\n",
 			read_bytes, data_filename, g_delay);
 
+	// Start sending data!
 	g_active = true;
 	signal(SIGINT, stop_it);
-	printf("Sending traffic...");
+	printf("Sending traffic, press CTRL-C to stop : %s -> %s...",
+			tx_device.name, rx_device.name);
 	pthread_create(&rx_thread, NULL, rx_data, NULL);
 	pthread_create(&tx_thread, NULL, tx_data, NULL);
 	pthread_join(tx_thread, NULL);
 	pthread_join(rx_thread, NULL);
 
-	printf("\n\nDone.");
-	printf("\n\nData sent %u times, failed compares: %u\n", g_sent_cnt, g_miscompare_cnt);
+	printf("\n\nResults:\n");
+	printf("  Number of times data was sent: %u\n", g_sent_cnt);
+	printf("  Good compares: %u\n", g_goodcompare_cnt);
+	printf("  Failed compares: %u\n", g_miscompare_cnt);
 
 done:
-	free_device_opts(&tx_device);
-	free_device_opts(&rx_device);
+	// Deallocate memory and objects, prepare to exit... 
+	free_serial_device_opts(&tx_device);
+	free_serial_device_opts(&rx_device);
 	if (g_data_out)
 	{
 		free(g_data_out);
