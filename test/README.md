@@ -3,7 +3,17 @@
 ## port-runner
 Simple C program for transmitting traffic out one serial port and receiving back on another, checking for validity.  Something we might use to exercise the uart-proxy application to verify it is not dropping traffic and catch regressions in that area.
 
-Requires `make` and `gcc` are present on a system (originally built-and-tested on an Ubuntu 16.04 x64 VM).
+### Building
+
+Designed under Linux (originally built-and-tested on an Ubuntu 16.04 x64 VM).  You'll need `make` and `gcc` to be present, then building is as simple as `make`:
+
+```
+$ make
+gcc port-runner.c -lpthread -o port-runner
+$ ./port-runner -h
+Usage: ./port-runner -t <transmit device>,<baud> -r <receive device>,<baud> -f <data filename> -d <delay in ms between sends>
+  example: ./port-runner -t /dev/ttyUSB0,b115200 -r /dev/ttyUSB1,b115200 -f mydata -d 200
+```
 
 ### Usage
 `Usage: ./port-runner -t <transmit device>,<baud> -r <receive device>,<baud> -f <data filename> -d <delay in ms between sends>`
