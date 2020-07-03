@@ -28,6 +28,7 @@ gReplCmds = {
 	'h': 'help',
 	'quit': {'desc': 'quit uart-proxy', 'method': quit},
 	'q': 'quit',
+	'exit': 'quit',
 	'set': {'desc': 'apply UART port settings'},
 	'start': {'desc': 'start sniffing UART traffic'}
 }
