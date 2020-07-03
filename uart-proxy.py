@@ -16,21 +16,58 @@ Welcome to the UART Proxy!
 ##########################
 	''')
 
+def setPort(args = ''):
+	if len(args) != 3:
+		print('Incorrect number of args, type \'help\' for usage')
+		return
+	port = args[0]
+	deviceName = args[1]
+	baud = args[2]
+	if port != 'A' and port != 'B':
+		print('Invalid \'port\' value, type \'help\' for usage')
+		return
+
+def promptHelpDisplay(command, data):
+	print('%-8s: %s' % (command, data['desc']))
+	if 'usage' in data:
+		print('%+15s: %s' % ('usage', data['usage']))
+	if 'examples' in data:
+		for ex in data['examples']:
+			print('%+15s: %s' % ('ex', ex))
+
 # Display all available commands and descriptions at the interactive prompt.
-def promptHelp():
-	for k,v in gReplCmds.items():
-		if type(v) is dict:
-			print('%-7s : %s' % (k, v['desc']))
+def promptHelp(args = ''):
+	if len(args) == 1:
+		if args[0] in gReplCmds:
+			promptHelpDisplay(args[0], gReplCmds[args[0]])
+		else:
+			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
+				(args[0]))
+	else:
+		for k,v in gReplCmds.items():
+			if type(v) is dict:
+				promptHelpDisplay(k, v)
 
 # Global dict of commands and associated info supported in the interactive prompt.
 gReplCmds = {
-	'help': {'desc': 'display available commands and descriptions', 'method': promptHelp},
+	'help': {
+			'desc': 	'display available commands and descriptions',
+			'method': 	promptHelp},
 	'h': 'help',
-	'quit': {'desc': 'quit uart-proxy', 'method': quit},
+	'quit': {
+			'desc': 	'quit uart-proxy',
+			'method': 	quit},
 	'q': 'quit',
 	'exit': 'quit',
-	'set': {'desc': 'apply UART port settings'},
-	'start': {'desc': 'start sniffing UART traffic'}
+	'set': {
+			'desc':		'apply UART port settings',
+			'usage':	'set <A|B> <device> <baud>',
+			'examples':	[
+						'set A /dev/ttyUSB0 115200',
+						'set B /dev/ttyUSB0 115200'],
+			'method': 	setPort},
+	'start': {
+			'desc': 	'start sniffing UART traffic'}
 }
 
 ############################
@@ -67,9 +104,12 @@ def main():
 				promptCmdVal = gReplCmds[promptCmdVal]
 			if 'method' in promptCmdVal:
 				# Call the method associated with the command.
-				promptCmdVal['method']()
+				if len(promptList) > 1:
+					promptCmdVal['method'](promptList[1:])
+				else:
+					promptCmdVal['method']()
 			else:
-				print('Welp, TBD!  :)')
+				print('Welp, this command is TBD!  :)')
 		else:
 			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
 				(promptCmd))
