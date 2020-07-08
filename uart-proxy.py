@@ -19,7 +19,7 @@ Welcome to the UART Proxy!
 	''')
 
 def listSerialPorts():
-	for p in comports():
+	for p in sorted(comports()):
 		print(p)
 
 def setPort(args = ''):
