@@ -8,6 +8,8 @@
 # Copyright 2020
 
 import argparse
+import serial
+from serial.tools.list_ports import comports
 
 def welcomeBanner():
 	print('''
@@ -15,6 +17,10 @@ def welcomeBanner():
 Welcome to the UART Proxy!
 ##########################
 	''')
+
+def listSerialPorts():
+	for p in comports():
+		print(p)
 
 def setPort(args = ''):
 	if len(args) != 3:
@@ -26,6 +32,33 @@ def setPort(args = ''):
 	if port != 'A' and port != 'B':
 		print('Invalid \'port\' value, type \'help\' for usage')
 		return
+
+def startSniff(args = ''):
+	portA = serial.Serial('/dev/ttyUSB1', 115200, timeout=0);
+	portB = serial.Serial('/dev/ttyUSB2', 115200, timeout=0);
+	print('Sniffing between ports, press CTRL-C to stop...')
+	lastPrinted = 'None'
+	while True:
+		dataA = portA.read(10)
+		if len(dataA) > 0:
+			if lastPrinted != 'A':
+				print()
+				print('A -> B: ', end = '')
+				lastPrinted = 'A'
+			for b in dataA:
+				print('%02x ' % b, end = '', flush = True)
+			portB.write(dataA)
+		dataB = portB.read(10)
+		if len(dataB) > 0:
+			if lastPrinted != 'B':
+				print()
+				print('B -> A: ', end = '')
+				lastPrinted = 'B'
+			for b in dataB:
+				print('%02x ' % b, end = '', flush = True)
+			portA.write(dataB)
+	portA.close()
+	portB.close()
 
 def promptHelpDisplay(command, data):
 	print('%-8s: %s' % (command, data['desc']))
@@ -44,7 +77,7 @@ def promptHelp(args = ''):
 			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
 				(args[0]))
 	else:
-		for k,v in gReplCmds.items():
+		for k,v in sorted(gReplCmds.items()):
 			if type(v) is dict:
 				promptHelpDisplay(k, v)
 
@@ -59,6 +92,9 @@ gReplCmds = {
 			'method': 	quit},
 	'q': 'quit',
 	'exit': 'quit',
+	'list': {
+			'desc':		'list all serial ports available to use',
+			'method': 	listSerialPorts},
 	'set': {
 			'desc':		'apply UART port settings',
 			'usage':	'set <A|B> <device> <baud>',
@@ -67,7 +103,9 @@ gReplCmds = {
 						'set B /dev/ttyUSB0 115200'],
 			'method': 	setPort},
 	'start': {
-			'desc': 	'start sniffing UART traffic'}
+			'desc': 	'start sniffing UART traffic',
+			'usage':	'start',
+			'method': 	startSniff},
 }
 
 ############################
@@ -77,6 +115,8 @@ def main():
 
 	# Setup command line arg parsing.
 	argParser = argparse.ArgumentParser(description = 'UART Proxy app')
+	argParser.add_argument('-l', action = 'store_true', dest = 'listPorts',
+		help = 'list all serial ports available to use')
 	argParser.add_argument('-b', action = 'store_true', dest = 'background',
 		help = 'background the app for use with web browser UI (TBD)')
 	argParser.add_argument('-q', action = 'store_true', dest = 'quiet',
@@ -84,6 +124,10 @@ def main():
 
 	# Parse (and action on) the command line args...
 	cmdlineArgs = argParser.parse_args()
+
+	if cmdlineArgs.listPorts:
+		listSerialPorts()
+		return
 
 	if cmdlineArgs.background:
 		print("Background logic is TBD, running in interactive mode...")
