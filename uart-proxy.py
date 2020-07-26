@@ -11,6 +11,19 @@ import argparse
 import serial
 from serial.tools.list_ports import comports
 
+### Globals ###
+
+msgDelims = {}
+msgDelims["start"] = []
+msgDelims["end"] = []
+
+checkMsgBuffers = {}
+checkMsgBuffers["A"] = []
+checkMsgBuffers["B"] = []
+checkMsgBufferMax = 0
+
+### Methods ###
+
 def welcomeBanner():
 	print('''
 ##########################
@@ -33,7 +46,7 @@ def listSerialPorts(args = []):
 			print("    desc: {}".format(port_info.description))
 			print("    hwid: {}".format(port_info.hwid))
 
-def setPort(args = []):
+def portSet(args = ''):
 	if len(args) != 3:
 		print('Incorrect number of args, type \'help\' for usage')
 		return
@@ -44,11 +57,64 @@ def setPort(args = []):
 		print('Invalid \'port\' value, type \'help\' for usage')
 		return
 
-def startSniff(args = []):
+def msgSet(args = ''):
+	if len(args) < 2:
+		print('Incorrect number of args, type \'help\' for usage')
+		return
+	settingType = args[0]
+	valuesStr = " ".join(args[1:])
+	values = valuesStr.split(",")
+	if settingType != 'start' and settingType != 'end':
+		print('Invalid \'start/end\' value, type \'help\' for usage')
+		return
+	msgDelims[settingType] = []
+	for i in values:
+		delim = []
+		for j in i.split(" "):
+			if len(j) > 0:
+				delim.append(hex(int(j, 16)))
+		msgDelims[settingType].append(delim)
+
+def checkMsg(port, byte):
+	global checkMsgBufferMax
+
+	matched = False
+	if checkMsgBufferMax > 0:
+		#print("PJB here 1, port = %s, bytes - 0x%02x" % (port,byte))
+		if len(checkMsgBuffers[port]) == checkMsgBufferMax:
+			checkMsgBuffers[port].pop(0)
+		checkMsgBuffers[port].append(hex(byte))
+		for i in msgDelims["start"] + msgDelims["end"]:
+			cmpStartIndex = 0
+			if len(checkMsgBuffers[port]) < len(i):
+				# Not enough bytes in buffer to compare with delim pattern
+				continue
+			elif len(checkMsgBuffers[port]) > len(i):
+				# Compare the correct length of the delim pattern to match on
+				cmpStartIndex = len(checkMsgBuffers[port]) - len(i)
+			# print("comparing i (%s) with %s" % (str(i), checkMsgBuffers[port][cmpStartIndex:]))
+			if checkMsgBuffers[port][cmpStartIndex:] == i:
+				checkMsgBuffers[port] = []
+				matched = True
+				break
+	return matched
+
+def startSniff(args = ''):
+	global checkMsgBufferMax
+	checkMsgBufferMax = 0
+	#if len(msgDelims["start"]) > 0 or len(msgDelims["end"]) > 0:
+		# Setup for message parsing based on delimiters.
+	for i in msgDelims["start"] + msgDelims["end"]:
+		if len(i) > checkMsgBufferMax:
+			checkMsgBufferMax = len(i)
+
 	portA = serial.Serial('/dev/ttyUSB1', 115200, timeout=0);
 	portB = serial.Serial('/dev/ttyUSB2', 115200, timeout=0);
 	print('Sniffing between ports, press CTRL-C to stop...')
 	lastPrinted = 'None'
+	matched = {}
+	matched["A"] = False
+	matched["B"] = False
 	while True:
 		dataA = portA.read(10)
 		if len(dataA) > 0:
@@ -56,8 +122,14 @@ def startSniff(args = []):
 				print()
 				print('A -> B: ', end = '')
 				lastPrinted = 'A'
+			else:
+				if matched["A"]:
+					print()
+					print('        ', end = '')
+			matched["A"] = False
 			for b in dataA:
-				print('%02x ' % b, end = '', flush = True)
+				print('0x%02x ' % b, end = '', flush = True)
+				matched["A"] = checkMsg("A", b)
 			portB.write(dataA)
 		dataB = portB.read(10)
 		if len(dataB) > 0:
@@ -65,8 +137,14 @@ def startSniff(args = []):
 				print()
 				print('B -> A: ', end = '')
 				lastPrinted = 'B'
+			else:
+				if matched["B"]:
+					print()
+					print('        ', end = '')
+			matched["B"] = False
 			for b in dataB:
-				print('%02x ' % b, end = '', flush = True)
+				print('0x%02x ' % b, end = '', flush = True)
+				matched["B"] = checkMsg("B", b)
 			portA.write(dataB)
 	portA.close()
 	portB.close()
@@ -107,13 +185,22 @@ gReplCmds = {
 			'desc':		'list all serial ports available to use',
 			'usage':	'list [-v]',
 			'method': 	listSerialPorts},
-	'set': {
+	'portset': {
 			'desc':		'apply UART port settings',
-			'usage':	'set <A|B> <device> <baud>',
+			'usage':	'portset <A|B> <device> <baud>',
 			'examples':	[
-						'set A /dev/ttyUSB0 115200',
-						'set B /dev/ttyUSB0 115200'],
-			'method': 	setPort},
+						'portset A /dev/ttyUSB0 115200',
+						'portset B /dev/ttyUSB0 115200'
+					],
+			'method': 	portSet},
+	'msgset': {
+			'desc':		'apply message parsing settings',
+			'usage':	'msgset <start|end> <hex byte pattern>[,<hex byte pattern>,...]',
+			'examples':	[
+						'msgset start 0x01 0x00, 0x01 0x04, 0x07',
+						'msgset end 0x99'
+					],
+			'method': 	msgSet},
 	'start': {
 			'desc': 	'start sniffing UART traffic',
 			'usage':	'start',
