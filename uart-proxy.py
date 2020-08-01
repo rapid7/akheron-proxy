@@ -75,16 +75,16 @@ def msgSet(args = ''):
 				delim.append(hex(int(j, 16)))
 		msgDelims[settingType].append(delim)
 
-def checkMsg(port, byte):
+def checkMsg(port, startOrEnd, byte):
 	global checkMsgBufferMax
 
-	matched = False
+	matchedStr = ""
 	if checkMsgBufferMax > 0:
 		#print("PJB here 1, port = %s, bytes - 0x%02x" % (port,byte))
 		if len(checkMsgBuffers[port]) == checkMsgBufferMax:
 			checkMsgBuffers[port].pop(0)
 		checkMsgBuffers[port].append(hex(byte))
-		for i in msgDelims["start"] + msgDelims["end"]:
+		for i in msgDelims[startOrEnd]:
 			cmpStartIndex = 0
 			if len(checkMsgBuffers[port]) < len(i):
 				# Not enough bytes in buffer to compare with delim pattern
@@ -95,9 +95,9 @@ def checkMsg(port, byte):
 			# print("comparing i (%s) with %s" % (str(i), checkMsgBuffers[port][cmpStartIndex:]))
 			if checkMsgBuffers[port][cmpStartIndex:] == i:
 				checkMsgBuffers[port] = []
-				matched = True
+				matchedStr= i
 				break
-	return matched
+	return matchedStr
 
 def startSniff(args = ''):
 	global checkMsgBufferMax
@@ -113,8 +113,12 @@ def startSniff(args = ''):
 	print('Sniffing between ports, press CTRL-C to stop...')
 	lastPrinted = 'None'
 	matched = {}
-	matched["A"] = False
-	matched["B"] = False
+	matched["A"] = {}
+	matched["A"]["start"] = ""
+	matched["A"]["end"] = ""
+	matched["B"] = {}
+	matched["B"]["start"] = ""
+	matched["B"]["end"] = ""
 	while True:
 		dataA = portA.read(10)
 		if len(dataA) > 0:
@@ -123,13 +127,22 @@ def startSniff(args = ''):
 				print('A -> B: ', end = '')
 				lastPrinted = 'A'
 			else:
-				if matched["A"]:
+				if len(matched["A"]["end"]) > 0:
 					print()
 					print('        ', end = '')
-			matched["A"] = False
+			matched["A"]["start"] = ""
+			matched["A"]["end"] = ""
 			for b in dataA:
-				print('0x%02x ' % b, end = '', flush = True)
-				matched["A"] = checkMsg("A", b)
+				matched["A"]["start"] = checkMsg("A", "start", b)
+				if len(matched["A"]["start"]) > 0:
+					if len(matched["A"]["start"]) > 1:
+						print("\b" * 5 * (len(matched["A"]["start"]) - 1), end = '')
+						print(" " * 5 * (len(matched["A"]["start"]) - 1), end = '')
+					print()
+					print('        ' + " ".join(matched["A"]["start"]) + " ", end = '', flush = True)
+				else:
+					matched["A"]["end"] = checkMsg("A", "end", b)
+					print('0x%02x ' % b, end = '', flush = True)
 			portB.write(dataA)
 		dataB = portB.read(10)
 		if len(dataB) > 0:
@@ -138,13 +151,22 @@ def startSniff(args = ''):
 				print('B -> A: ', end = '')
 				lastPrinted = 'B'
 			else:
-				if matched["B"]:
+				if len(matched["B"]["end"]) > 0:
 					print()
 					print('        ', end = '')
-			matched["B"] = False
+			matched["B"]["start"] = ""
+			matched["B"]["end"] = ""
 			for b in dataB:
-				print('0x%02x ' % b, end = '', flush = True)
-				matched["B"] = checkMsg("B", b)
+				matched["B"]["start"] = checkMsg("B", "start", b)
+				if len(matched["B"]["start"]) > 0:
+					if len(matched["B"]["start"]) > 1:
+						print("\b" * 5 * (len(matched["B"]["start"]) - 1), end = '')
+						print(" " * 5 * (len(matched["B"]["start"]) - 1), end = '')
+					print()
+					print('        ' + " ".join(matched["B"]["start"]) + " ", end = '', flush = True)
+				else:
+					matched["B"]["end"] = checkMsg("B", "end", b)
+					print('0x%02x ' % b, end = '', flush = True)
 			portA.write(dataB)
 	portA.close()
 	portB.close()
