@@ -13,10 +13,12 @@ from serial.tools.list_ports import comports
 
 ### Globals ###
 
+# Delemiters for start-of-message and end-of-message, as provided via 'msgset' command.
 msgDelims = {}
 msgDelims["start"] = []
 msgDelims["end"] = []
 
+# Temp buffers for holding incoming (RX'd) data to check against msgDelims.
 checkMsgBuffers = {}
 checkMsgBuffers["A"] = []
 checkMsgBuffers["B"] = []
@@ -31,8 +33,8 @@ Welcome to the UART Proxy!
 ##########################
 	''')
 
+# 'list' command, displays available serial ports.
 def listSerialPorts(args = []):
-	# TODO: workaround until REPL supports arg parsing for commands
 	if len(args) == 1 and args[0] == '-v':
 		verbose = True
 	else:
@@ -46,6 +48,7 @@ def listSerialPorts(args = []):
 			print("    desc: {}".format(port_info.description))
 			print("    hwid: {}".format(port_info.hwid))
 
+# 'portset' command, allows user to set serial port settings.
 def portSet(args = ''):
 	if len(args) != 3:
 		print('Incorrect number of args, type \'help\' for usage')
@@ -57,6 +60,7 @@ def portSet(args = ''):
 		print('Invalid \'port\' value, type \'help\' for usage')
 		return
 
+# 'msgset' command, allows user to set start-of-message and -end-of-message delimiters.
 def msgSet(args = ''):
 	if len(args) < 2:
 		print('Incorrect number of args, type \'help\' for usage')
@@ -75,13 +79,16 @@ def msgSet(args = ''):
 				delim.append(hex(int(j, 16)))
 		msgDelims[settingType].append(delim)
 
+# Check a received set of bytes for a match to a start-of-message or end-of-message delim.
+#
+# Return: matched string (delim) value (empty string if no match).
 def checkMsg(port, startOrEnd, byte):
 	global checkMsgBufferMax
 
 	matchedStr = ""
 	if checkMsgBufferMax > 0:
-		#print("PJB here 1, port = %s, bytes - 0x%02x" % (port,byte))
 		if len(checkMsgBuffers[port]) == checkMsgBufferMax:
+			# Our message buffer is full, remove the oldest char.
 			checkMsgBuffers[port].pop(0)
 		checkMsgBuffers[port].append(hex(byte))
 		for i in msgDelims[startOrEnd]:
@@ -92,8 +99,8 @@ def checkMsg(port, startOrEnd, byte):
 			elif len(checkMsgBuffers[port]) > len(i):
 				# Compare the correct length of the delim pattern to match on
 				cmpStartIndex = len(checkMsgBuffers[port]) - len(i)
-			# print("comparing i (%s) with %s" % (str(i), checkMsgBuffers[port][cmpStartIndex:]))
 			if checkMsgBuffers[port][cmpStartIndex:] == i:
+				# Matched a delimiter!
 				checkMsgBuffers[port] = []
 				matchedStr= i
 				break
@@ -102,15 +109,17 @@ def checkMsg(port, startOrEnd, byte):
 def startSniff(args = ''):
 	global checkMsgBufferMax
 	checkMsgBufferMax = 0
-	#if len(msgDelims["start"]) > 0 or len(msgDelims["end"]) > 0:
-		# Setup for message parsing based on delimiters.
+	# Set checkMsgBufferMax to the 'longest' delimiter length.
 	for i in msgDelims["start"] + msgDelims["end"]:
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
+	# Apply serial port settings and open ports.
 	portA = serial.Serial('/dev/ttyUSB1', 115200, timeout=0);
 	portB = serial.Serial('/dev/ttyUSB2', 115200, timeout=0);
+
 	print('Sniffing between ports, press CTRL-C to stop...')
+
 	lastPrinted = 'None'
 	matched = {}
 	matched["A"] = {}
@@ -120,53 +129,73 @@ def startSniff(args = ''):
 	matched["B"]["start"] = ""
 	matched["B"]["end"] = ""
 	while True:
+
+		# Process incoming data from port 'A'...
 		dataA = portA.read(10)
 		if len(dataA) > 0:
 			if lastPrinted != 'A':
+				# Last data we printed was from the other port, print our current port source.
 				print()
 				print('A -> B: ', end = '')
 				lastPrinted = 'A'
 			else:
 				if len(matched["A"]["end"]) > 0:
+					# The previous byte we looked at matched an end-of-message delim, go to new line.
 					print()
 					print('        ', end = '')
 			matched["A"]["start"] = ""
 			matched["A"]["end"] = ""
 			for b in dataA:
+				# Check if each incoming byte makes a start-of-message delim match.
 				matched["A"]["start"] = checkMsg("A", "start", b)
 				if len(matched["A"]["start"]) > 0:
+					# We did match a start-of-message delim. 
 					if len(matched["A"]["start"]) > 1:
+						# It was a multi-byte start-of-message delim, so remove previous data bytes
+						# that we had alrady printed.
 						print("\b" * 5 * (len(matched["A"]["start"]) - 1), end = '')
 						print(" " * 5 * (len(matched["A"]["start"]) - 1), end = '')
 					print()
 					print('        ' + " ".join(matched["A"]["start"]) + " ", end = '', flush = True)
 				else:
+					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["A"]["end"] = checkMsg("A", "end", b)
 					print('0x%02x ' % b, end = '', flush = True)
+			# Send byte along to port B.
 			portB.write(dataA)
+
+		# Process incoming data from port 'B'...
 		dataB = portB.read(10)
 		if len(dataB) > 0:
 			if lastPrinted != 'B':
+				# Last data we printed was from the other port, print our current port source.
 				print()
 				print('B -> A: ', end = '')
 				lastPrinted = 'B'
 			else:
 				if len(matched["B"]["end"]) > 0:
+					# The previous byte we looked at matched an end-of-message delim, go to new line.
 					print()
 					print('        ', end = '')
 			matched["B"]["start"] = ""
 			matched["B"]["end"] = ""
 			for b in dataB:
+				# Check if each incoming byte makes a start-of-message delim match.
 				matched["B"]["start"] = checkMsg("B", "start", b)
 				if len(matched["B"]["start"]) > 0:
+					# We did match a start-of-message delim. 
 					if len(matched["B"]["start"]) > 1:
+						# It was a multi-byte start-of-message delim, so remove previous data bytes
+						# that we had alrady printed.
 						print("\b" * 5 * (len(matched["B"]["start"]) - 1), end = '')
 						print(" " * 5 * (len(matched["B"]["start"]) - 1), end = '')
 					print()
 					print('        ' + " ".join(matched["B"]["start"]) + " ", end = '', flush = True)
 				else:
+					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["B"]["end"] = checkMsg("B", "end", b)
 					print('0x%02x ' % b, end = '', flush = True)
+			# Send byte along to port A.
 			portA.write(dataB)
 	portA.close()
 	portB.close()
