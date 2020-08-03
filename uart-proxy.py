@@ -18,9 +18,18 @@ Welcome to the UART Proxy!
 ##########################
 	''')
 
-def listSerialPorts():
-	for p in sorted(comports()):
-		print(p)
+def listSerialPorts(verbose=False):
+	# TODO: workaround until REPL supports arg parsing for commands
+	if not isinstance(verbose, bool):
+		verbose = False
+
+	iterator = sorted(comports())
+	# list ports
+	for n, port_info in enumerate(iterator):
+		print("{}".format(port_info.device))
+		if verbose:
+			print("    desc: {}".format(port_info.description))
+			print("    hwid: {}".format(port_info.hwid))
 
 def setPort(args = ''):
 	if len(args) != 3:
@@ -121,12 +130,14 @@ def main():
 		help = 'background the app for use with web browser UI (TBD)')
 	argParser.add_argument('-q', action = 'store_true', dest = 'quiet',
 		help = 'skip the banner on startup')
+	argParser.add_argument('-v', '--verbose', action='store_true',
+		help='show more information')
 
 	# Parse (and action on) the command line args...
 	cmdlineArgs = argParser.parse_args()
 
 	if cmdlineArgs.listPorts:
-		listSerialPorts()
+		listSerialPorts(cmdlineArgs.verbose)
 		return
 
 	if cmdlineArgs.background:
