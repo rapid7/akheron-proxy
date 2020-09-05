@@ -13,6 +13,11 @@ from serial.tools.list_ports import comports
 
 ### Globals ###
 
+# Port settings
+portSettings = {}
+portSettings["A"] = {"dev": "", "baud": 0}
+portSettings["B"] = {"dev": "", "baud": 0}
+
 # Delemiters for start-of-message and end-of-message, as provided via 'msgset' command.
 msgDelims = {}
 msgDelims["start"] = []
@@ -48,6 +53,15 @@ def listSerialPorts(args = []):
 			print("    desc: {}".format(port_info.description))
 			print("    hwid: {}".format(port_info.hwid))
 
+# 'portget' command, allows user to dump current serial port settings in the app.
+def portGet(args = ''):
+	for p in ['A', 'B']:
+		print('Port \'%s\': ' % (p), end ='')
+		if portSettings[p]['dev']:
+			print('device \'%s\' at %i' % (portSettings[p]['dev'], portSettings[p]['baud']))
+		else:
+			print('not set')
+
 # 'portset' command, allows user to set serial port settings.
 def portSet(args = ''):
 	if len(args) != 3:
@@ -59,6 +73,18 @@ def portSet(args = ''):
 	if port != 'A' and port != 'B':
 		print('Invalid \'port\' value, type \'help\' for usage')
 		return
+
+	# Dumb 'validation' of device and baud values: just try opening it and error if it didn't work!
+	try:
+		portTry = serial.Serial(deviceName, int(baud), timeout=0);
+	except:
+		print('Could not open device "%s" at baud "%s"' % (deviceName, baud));
+		return
+
+	# If we got here, it worked, so save off the values...
+	portTry.close()
+	portSettings[port]["dev"] = deviceName
+	portSettings[port]["baud"] = int(baud)
 
 # 'msgset' command, allows user to set start-of-message and -end-of-message delimiters.
 def msgSet(args = ''):
@@ -114,11 +140,20 @@ def startSniff(args = ''):
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
+	portSettingsMissing = []
+	if not portSettings["A"]["dev"]:
+		portSettingsMissing.append('A')
+	if not portSettings["B"]["dev"]:
+		portSettingsMissing.append('B')
+	if len(portSettingsMissing) > 0:
+		portStr = "' and '".join(portSettingsMissing)
+		print('Port \'%s\' missing settings, please use the \'portset\' command to set device and baud.' % (portStr))
+		return
 	# Apply serial port settings and open ports.
-	portA = serial.Serial('/dev/ttyUSB1', 115200, timeout=0);
-	portB = serial.Serial('/dev/ttyUSB2', 115200, timeout=0);
+	portA = serial.Serial(portSettings["A"]["dev"], portSettings["A"]["baud"], timeout=0);
+	portB = serial.Serial(portSettings["B"]["dev"], portSettings["B"]["baud"], timeout=0);
 
-	print('Sniffing between ports, press CTRL-C to stop...')
+	print('Sniffing between ports \'%s\' <-> \'%s\', press CTRL-C to stop...' % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
 
 	lastPrinted = 'None'
 	matched = {}
@@ -236,6 +271,13 @@ gReplCmds = {
 			'desc':		'list all serial ports available to use',
 			'usage':	'list [-v]',
 			'method': 	listSerialPorts},
+	'portget': {
+			'desc':		'dump curreent UART port settings',
+			'usage':	'portget',
+			'examples':	[
+						'portget'
+					],
+			'method': 	portGet},
 	'portset': {
 			'desc':		'apply UART port settings',
 			'usage':	'portset <A|B> <device> <baud>',
@@ -294,10 +336,10 @@ def main():
 	while True:
 		promptInput = input('> ')
 		promptList = promptInput.split(' ')
-		promptCmd = promptList[0]
+		promptCmd = promptList[0].lower()
 		# Lookup command.
 		if promptCmd in gReplCmds:
-			promptCmdVal = gReplCmds[promptList[0]]
+			promptCmdVal = gReplCmds[promptCmd]
 			if type(promptCmdVal) is str:
 				# This command is an alias for another, look that other one up.
 				promptCmdVal = gReplCmds[promptCmdVal]
@@ -309,7 +351,7 @@ def main():
 					promptCmdVal['method']()
 			else:
 				print('Welp, this command is TBD!  :)')
-		else:
+		elif len(promptCmd):
 			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
 				(promptCmd))
 
