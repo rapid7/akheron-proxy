@@ -29,6 +29,10 @@ checkMsgBuffers["A"] = []
 checkMsgBuffers["B"] = []
 checkMsgBufferMax = 0
 
+# When capturing to an external file
+captureFile = None
+captureFileSize = 0
+
 ### Methods ###
 
 def welcomeBanner():
@@ -88,6 +92,8 @@ def portSet(args = ''):
 
 # 'msgset' command, allows user to set start-of-message and -end-of-message delimiters.
 def msgSet(args = ''):
+	global msgDelims
+
 	if len(args) < 2:
 		print('Incorrect number of args, type \'help\' for usage')
 		return
@@ -128,11 +134,40 @@ def checkMsg(port, startOrEnd, byte):
 			if checkMsgBuffers[port][cmpStartIndex:] == i:
 				# Matched a delimiter!
 				checkMsgBuffers[port] = []
-				matchedStr= i
+				matchedStr = i
 				break
 	return matchedStr
 
+def tee(string = '', end = '\n'):
+	global captureFileSize
+
+	if captureFile:
+		if len(string) > 0 and string[0] == '\b':
+			# Need to erase some previously-written bytes due to a msg delimiter.
+			if captureFileSize >= len(string):
+				captureFileSize -= len(string)
+			else:
+				captureFileSize = 0
+			captureFile.seek(captureFileSize, 0)
+		else:
+			captureFile.write('%s%s' % (string, end))
+			captureFileSize += len(string) + len(end)
+	print(string, end = end, flush = True)
+
+# Sniffing traffic between two ports
 def startSniff(args = ''):
+	global captureFile
+	global captureFileSize
+
+	captureFile = None
+	captureFileSize = 0
+	if len(args) > 1:
+		print('Incorrect number of args, type \'help\' for usage')
+		return
+	elif len(args) == 1:
+		captureFileName = args[0]
+		captureFile = open(captureFileName, "w")
+
 	global checkMsgBufferMax
 	checkMsgBufferMax = 0
 	# Set checkMsgBufferMax to the 'longest' delimiter length.
@@ -153,7 +188,12 @@ def startSniff(args = ''):
 	portA = serial.Serial(portSettings["A"]["dev"], portSettings["A"]["baud"], timeout=0);
 	portB = serial.Serial(portSettings["B"]["dev"], portSettings["B"]["baud"], timeout=0);
 
-	print('Sniffing between ports \'%s\' <-> \'%s\', press CTRL-C to stop...' % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
+	print('Sniffing between ports \'%s\' <-> \'%s\'' % (portSettings["A"]["dev"], portSettings["B"]["dev"]), end = '')
+	if captureFile:
+		print(', saving captured traffic to \'%s\'' % captureFileName)
+	else:
+		print()
+	print('Press CTRL-C to stop...')
 
 	lastPrinted = 'None'
 	matched = {}
@@ -170,14 +210,14 @@ def startSniff(args = ''):
 		if len(dataA) > 0:
 			if lastPrinted != 'A':
 				# Last data we printed was from the other port, print our current port source.
-				print()
-				print('A -> B: ', end = '')
+				tee()
+				tee('A -> B: ', '')
 				lastPrinted = 'A'
 			else:
 				if len(matched["A"]["end"]) > 0:
 					# The previous byte we looked at matched an end-of-message delim, go to new line.
-					print()
-					print('        ', end = '')
+					tee()
+					tee('        ', '')
 			matched["A"]["start"] = ""
 			matched["A"]["end"] = ""
 			for b in dataA:
@@ -188,14 +228,14 @@ def startSniff(args = ''):
 					if len(matched["A"]["start"]) > 1:
 						# It was a multi-byte start-of-message delim, so remove previous data bytes
 						# that we had alrady printed.
-						print("\b" * 5 * (len(matched["A"]["start"]) - 1), end = '')
-						print(" " * 5 * (len(matched["A"]["start"]) - 1), end = '')
-					print()
-					print('        ' + " ".join(matched["A"]["start"]) + " ", end = '', flush = True)
+						tee("\b" * 5 * (len(matched["A"]["start"]) - 1), '')
+						tee(" " * 5 * (len(matched["A"]["start"]) - 1), '')
+					tee()
+					tee('        ' + " ".join(matched["A"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["A"]["end"] = checkMsg("A", "end", b)
-					print('0x%02x ' % b, end = '', flush = True)
+					tee('0x%02x ' % b, '')
 			# Send byte along to port B.
 			portB.write(dataA)
 
@@ -204,14 +244,14 @@ def startSniff(args = ''):
 		if len(dataB) > 0:
 			if lastPrinted != 'B':
 				# Last data we printed was from the other port, print our current port source.
-				print()
-				print('B -> A: ', end = '')
+				tee()
+				tee('B -> A: ', '')
 				lastPrinted = 'B'
 			else:
 				if len(matched["B"]["end"]) > 0:
 					# The previous byte we looked at matched an end-of-message delim, go to new line.
-					print()
-					print('        ', end = '')
+					tee()
+					tee('        ', '')
 			matched["B"]["start"] = ""
 			matched["B"]["end"] = ""
 			for b in dataB:
@@ -222,18 +262,22 @@ def startSniff(args = ''):
 					if len(matched["B"]["start"]) > 1:
 						# It was a multi-byte start-of-message delim, so remove previous data bytes
 						# that we had alrady printed.
-						print("\b" * 5 * (len(matched["B"]["start"]) - 1), end = '')
-						print(" " * 5 * (len(matched["B"]["start"]) - 1), end = '')
-					print()
-					print('        ' + " ".join(matched["B"]["start"]) + " ", end = '', flush = True)
+						tee("\b" * 5 * (len(matched["B"]["start"]) - 1), '')
+						tee(" " * 5 * (len(matched["B"]["start"]) - 1), '')
+					tee()
+					tee('        ' + " ".join(matched["B"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["B"]["end"] = checkMsg("B", "end", b)
-					print('0x%02x ' % b, end = '', flush = True)
+					tee('0x%02x ' % b, '')
 			# Send byte along to port A.
 			portA.write(dataB)
 	portA.close()
 	portB.close()
+	if captureFile:
+		captureFile.close()
+		captureFile = None
+		captureFileSize = 0
 
 def promptHelpDisplay(command, data):
 	print('%-8s: %s' % (command, data['desc']))
@@ -296,7 +340,11 @@ gReplCmds = {
 			'method': 	msgSet},
 	'start': {
 			'desc': 	'start sniffing UART traffic',
-			'usage':	'start',
+			'usage':	'start [output file]',
+			'examples':	[
+						'start',
+						'start captured.out'
+					],
 			'method': 	startSniff},
 }
 
