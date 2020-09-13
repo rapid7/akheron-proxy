@@ -10,6 +10,7 @@
 import argparse
 import serial
 from serial.tools.list_ports import comports
+import signal
 
 ### Globals ###
 
@@ -32,8 +33,21 @@ checkMsgBufferMax = 0
 # When capturing to an external file
 captureFile = None
 captureFileSize = 0
+sniffRunning = False
 
 ### Methods ###
+
+def signalHandler(signum, frame):
+	global sniffRunning
+	if signum == signal.SIGINT and sniffRunning:
+		# Just stop sniffing...
+		sniffRunning = False
+	else:
+		# Quit program...
+		global captureFile
+		if captureFile:
+			captureFile.close()
+		exit()
 
 def welcomeBanner():
 	print('''
@@ -114,15 +128,16 @@ def msgSet(args = ''):
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
 #
 # Return: matched string (delim) value (empty string if no match).
-def checkMsg(port, startOrEnd, byte):
+def checkMsg(port, startOrEnd, byte = None):
 	global checkMsgBufferMax
 
 	matchedStr = ""
 	if checkMsgBufferMax > 0:
-		if len(checkMsgBuffers[port]) == checkMsgBufferMax:
-			# Our message buffer is full, remove the oldest char.
-			checkMsgBuffers[port].pop(0)
-		checkMsgBuffers[port].append(hex(byte))
+		if byte:
+			if len(checkMsgBuffers[port]) == checkMsgBufferMax:
+				# Our message buffer is full, remove the oldest char.
+				checkMsgBuffers[port].pop(0)
+			checkMsgBuffers[port].append(hex(byte))
 		for i in msgDelims[startOrEnd]:
 			cmpStartIndex = 0
 			if len(checkMsgBuffers[port]) < len(i):
@@ -203,7 +218,9 @@ def startSniff(args = ''):
 	matched["B"] = {}
 	matched["B"]["start"] = ""
 	matched["B"]["end"] = ""
-	while True:
+	global sniffRunning
+	sniffRunning = True
+	while sniffRunning:
 
 		# Process incoming data from port 'A'...
 		dataA = portA.read(10)
@@ -234,7 +251,7 @@ def startSniff(args = ''):
 					tee('        ' + " ".join(matched["A"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
-					matched["A"]["end"] = checkMsg("A", "end", b)
+					matched["A"]["end"] = checkMsg("A", "end")
 					tee('0x%02x ' % b, '')
 			# Send byte along to port B.
 			portB.write(dataA)
@@ -268,7 +285,7 @@ def startSniff(args = ''):
 					tee('        ' + " ".join(matched["B"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
-					matched["B"]["end"] = checkMsg("B", "end", b)
+					matched["B"]["end"] = checkMsg("B", "end")
 					tee('0x%02x ' % b, '')
 			# Send byte along to port A.
 			portA.write(dataB)
@@ -379,6 +396,9 @@ def main():
 	
 	if not cmdlineArgs.quiet:
 		welcomeBanner()
+
+	# Setup signal hanlding we need to do.
+	signal.signal(signal.SIGINT, signalHandler)
 
 	# "interactive prompt" (a.k.a. REPL).
 	while True:
