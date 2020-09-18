@@ -18,11 +18,22 @@ Welcome to the UART Proxy!
 ##########################
 	''')
 
-def listSerialPorts():
-	for p in sorted(comports()):
-		print(p)
+def listSerialPorts(args = []):
+	# TODO: workaround until REPL supports arg parsing for commands
+	if len(args) == 1 and args[0] == '-v':
+		verbose = True
+	else:
+		verbose = False
 
-def setPort(args = ''):
+	iterator = sorted(comports())
+	# list ports
+	for n, port_info in enumerate(iterator):
+		print("{}".format(port_info.device))
+		if verbose:
+			print("    desc: {}".format(port_info.description))
+			print("    hwid: {}".format(port_info.hwid))
+
+def setPort(args = []):
 	if len(args) != 3:
 		print('Incorrect number of args, type \'help\' for usage')
 		return
@@ -33,7 +44,7 @@ def setPort(args = ''):
 		print('Invalid \'port\' value, type \'help\' for usage')
 		return
 
-def startSniff(args = ''):
+def startSniff(args = []):
 	portA = serial.Serial('/dev/ttyUSB1', 115200, timeout=0);
 	portB = serial.Serial('/dev/ttyUSB2', 115200, timeout=0);
 	print('Sniffing between ports, press CTRL-C to stop...')
@@ -69,7 +80,7 @@ def promptHelpDisplay(command, data):
 			print('%+15s: %s' % ('ex', ex))
 
 # Display all available commands and descriptions at the interactive prompt.
-def promptHelp(args = ''):
+def promptHelp(args = []):
 	if len(args) == 1:
 		if args[0] in gReplCmds:
 			promptHelpDisplay(args[0], gReplCmds[args[0]])
@@ -94,6 +105,7 @@ gReplCmds = {
 	'exit': 'quit',
 	'list': {
 			'desc':		'list all serial ports available to use',
+			'usage':	'list [-v]',
 			'method': 	listSerialPorts},
 	'set': {
 			'desc':		'apply UART port settings',
@@ -121,12 +133,17 @@ def main():
 		help = 'background the app for use with web browser UI (TBD)')
 	argParser.add_argument('-q', action = 'store_true', dest = 'quiet',
 		help = 'skip the banner on startup')
+	argParser.add_argument('-v', '--verbose', action='store_true',
+		help='show more information')
 
 	# Parse (and action on) the command line args...
 	cmdlineArgs = argParser.parse_args()
 
 	if cmdlineArgs.listPorts:
-		listSerialPorts()
+		args = []
+		if cmdlineArgs.verbose:
+			args.append('-v')
+		listSerialPorts(args)
 		return
 
 	if cmdlineArgs.background:
