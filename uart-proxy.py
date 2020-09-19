@@ -57,7 +57,7 @@ Welcome to the UART Proxy!
 	''')
 
 # 'list' command, displays available serial ports.
-def listSerialPorts(args = []):
+def listSerialPorts(args = ''):
 	if len(args) == 1 and args[0] == '-v':
 		verbose = True
 	else:
@@ -248,7 +248,7 @@ def startSniff(args = ''):
 						tee("\b" * 5 * (len(matched["A"]["start"]) - 1), '')
 						tee(" " * 5 * (len(matched["A"]["start"]) - 1), '')
 					tee()
-					tee('        ' + " ".join(matched["A"]["start"]) + " ", '')
+					tee('        ' + " ".join(format("0x%02x" % int(n, 16)) for n in matched["A"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["A"]["end"] = checkMsg("A", "end")
@@ -282,7 +282,7 @@ def startSniff(args = ''):
 						tee("\b" * 5 * (len(matched["B"]["start"]) - 1), '')
 						tee(" " * 5 * (len(matched["B"]["start"]) - 1), '')
 					tee()
-					tee('        ' + " ".join(matched["B"]["start"]) + " ", '')
+					tee('        ' + " ".join(format("0x%02x" % int(n, 16)) for n in matched["B"]["start"]) + " ", '')
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["B"]["end"] = checkMsg("B", "end")
