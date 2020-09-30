@@ -170,7 +170,7 @@ def tee(string = '', end = '\n'):
 	print(string, end = end, flush = True)
 
 # Sniffing traffic between two ports
-def startSniff(args = ''):
+def captureTraffic(args = ''):
 	global captureFile
 	global captureFileSize
 
@@ -223,7 +223,11 @@ def startSniff(args = ''):
 	while sniffRunning:
 
 		# Process incoming data from port 'A'...
-		dataA = portA.read(10)
+		try:
+			dataA = portA.read(10)
+		except serial.serialutil.SerialException:
+			sniffRunning = False
+			continue
 		if len(dataA) > 0:
 			if lastPrinted != 'A':
 				# Last data we printed was from the other port, print our current port source.
@@ -257,7 +261,11 @@ def startSniff(args = ''):
 			portB.write(dataA)
 
 		# Process incoming data from port 'B'...
-		dataB = portB.read(10)
+		try:
+			dataB = portB.read(10)
+		except serial.serialutil.SerialException:
+			sniffRunning = False
+			continue
 		if len(dataB) > 0:
 			if lastPrinted != 'B':
 				# Last data we printed was from the other port, print our current port source.
@@ -295,6 +303,54 @@ def startSniff(args = ''):
 		captureFile.close()
 		captureFile = None
 		captureFileSize = 0
+	print('\nCapture stopped\n\n')
+
+# Dump capture file, along with line numbers
+def dumpCapture(args = ''):
+	if len(args) != 1:
+		print('Incorrect number of args, type \'help\' for usage')
+		return
+	dumpFileName = args[0]
+	# TODO errror handling
+	dumpFile = open(dumpFileName, "r")
+	dumpFileContents = dumpFile.readlines()
+
+	lineNum = 1
+	for line in dumpFileContents:
+		print('%5u: %s' % (lineNum, line.rstrip()))
+		lineNum += 1
+
+# Replaying traffic between two ports
+def replayTraffic(args = ''):
+	if len(args) > 2:
+		print('Incorrect number of args, type \'help\' for usage')
+		return
+	replayFileName = args[0]
+	replayFile = open(replayFileName, "r")
+	# TODO errror handling
+	replayFileContents = replayFile.readlines()
+
+	lines = []
+	if len(args) == 2:
+		valuesStr = " ".join(args[1:])
+		values = valuesStr.split(",")
+		for i in values:
+			hyphenPos = i.find('-')
+			if hyphenPos > 0:
+				rangeStart = int(i[0:hyphenPos])
+				rangeEnd = int(i[hyphenPos+1:]) + 1
+				lines.extend(list(range(rangeStart, rangeEnd)))
+			else:
+				lines.append(int(i))
+	else:
+		lines = list(range(1,len(replayFileContents) + 1))
+
+	lineNum = 1
+	for line in replayFileContents:
+		# todo track direction
+		if lineNum in lines:
+			print('%s' % (line.rstrip()))
+		lineNum += 1
 
 def promptHelpDisplay(command, data):
 	print('%-8s: %s' % (command, data['desc']))
@@ -355,14 +411,30 @@ gReplCmds = {
 						'msgset end 0x99'
 					],
 			'method': 	msgSet},
-	'start': {
-			'desc': 	'start sniffing UART traffic',
-			'usage':	'start [output file]',
+	'capture': {
+			'desc': 	'start forwarding-and-capturing UART traffic',
+			'usage':	'capture [output file]',
 			'examples':	[
-						'start',
-						'start captured.out'
+						'capture',
+						'capture sniffed.out'
 					],
-			'method': 	startSniff},
+			'method': 	captureTraffic},
+	'dump': {
+			'desc': 	'dump capture file contents',
+			'usage':	'dump <capture file>',
+			'examples':	[
+						'dump sniffed.out'
+					],
+			'method': 	dumpCapture},
+	'replay': {
+			'desc': 	'start forwarding-and-replaying UART traffic',
+			'usage':	'replay <capture file> [line number(s) to replay]',
+			'examples':	[
+						'replay sniffed.out',
+						'replay sniffed.out 1,4',
+						'replay sniffed.out 2-10',
+					],
+			'method': 	replayTraffic},
 }
 
 ############################
