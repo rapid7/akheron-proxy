@@ -11,6 +11,7 @@ import argparse
 import serial
 from serial.tools.list_ports import comports
 import signal
+import cmd
 
 ### Globals ###
 
@@ -322,7 +323,7 @@ def dumpCapture(args = ''):
 
 # Replaying traffic between two ports
 def replayTraffic(args = ''):
-	if len(args) > 2:
+	if len(args) == 0 or len(args) > 2:
 		print('Incorrect number of args, type \'help\' for usage')
 		return
 	replayFileName = args[0]
@@ -352,90 +353,86 @@ def replayTraffic(args = ''):
 			print('%s' % (line.rstrip()))
 		lineNum += 1
 
-def promptHelpDisplay(command, data):
-	print('%-8s: %s' % (command, data['desc']))
-	if 'usage' in data:
-		print('%+15s: %s' % ('usage', data['usage']))
-	if 'examples' in data:
-		for ex in data['examples']:
-			print('%+15s: %s' % ('ex', ex))
+class repl(cmd.Cmd):
+	prompt = '> '
+	use_rawinput = True
 
-# Display all available commands and descriptions at the interactive prompt.
-def promptHelp(args = []):
-	if len(args) == 1:
-		if args[0] in gReplCmds:
-			promptHelpDisplay(args[0], gReplCmds[args[0]])
-		else:
-			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
-				(args[0]))
-	else:
-		for k,v in sorted(gReplCmds.items()):
-			if type(v) is dict:
-				promptHelpDisplay(k, v)
+	def do_list(self, arg):
+		'''
+Description: list all serial ports available to use
 
-# Global dict of commands and associated info supported in the interactive prompt.
-gReplCmds = {
-	'help': {
-			'desc': 	'display available commands and descriptions',
-			'method': 	promptHelp},
-	'h': 'help',
-	'quit': {
-			'desc': 	'quit uart-proxy',
-			'method': 	quit},
-	'q': 'quit',
-	'exit': 'quit',
-	'list': {
-			'desc':		'list all serial ports available to use',
-			'usage':	'list [-v]',
-			'method': 	listSerialPorts},
-	'portget': {
-			'desc':		'dump curreent UART port settings',
-			'usage':	'portget',
-			'examples':	[
-						'portget'
-					],
-			'method': 	portGet},
-	'portset': {
-			'desc':		'apply UART port settings',
-			'usage':	'portset <A|B> <device> <baud>',
-			'examples':	[
-						'portset A /dev/ttyUSB0 115200',
-						'portset B /dev/ttyUSB0 115200'
-					],
-			'method': 	portSet},
-	'msgset': {
-			'desc':		'apply message parsing settings',
-			'usage':	'msgset <start|end> <hex byte pattern>[,<hex byte pattern>,...]',
-			'examples':	[
-						'msgset start 0x01 0x00, 0x01 0x04, 0x07',
-						'msgset end 0x99'
-					],
-			'method': 	msgSet},
-	'capture': {
-			'desc': 	'start forwarding-and-capturing UART traffic',
-			'usage':	'capture [output file]',
-			'examples':	[
-						'capture',
-						'capture sniffed.out'
-					],
-			'method': 	captureTraffic},
-	'dump': {
-			'desc': 	'dump capture file contents',
-			'usage':	'dump <capture file>',
-			'examples':	[
-						'dump sniffed.out'
-					],
-			'method': 	dumpCapture},
-	'replay': {
-			'desc': 	'start forwarding-and-replaying UART traffic',
-			'usage':	'replay <capture file> [line number(s) to replay]',
-			'examples':	[
-						'replay sniffed.out',
-						'replay sniffed.out 1,4',
-						'replay sniffed.out 2-10',
-					],
-			'method': 	replayTraffic},
-}
+Usage: list [-v]
+		'''
+		listSerialPorts(arg.split())
+
+	def do_portget(self, arg):
+		'''
+Description: dump current UART port settings
+
+Usage: portget
+		'''
+		portGet(arg.split())
+
+	def do_portset(self, arg):
+		'''
+Description: apply UART port settings
+
+Usage: portset <A|B> <device> <baud>
+
+Example(s): portset A /dev/ttyUSB0 115200
+            portset B /dev/ttyUSB0 115200
+		'''
+		portSet(arg.split())
+
+	def do_msgset(self, arg):
+		'''
+Description: apply message parsing settings
+
+Usage:	msgset <start|end> <hex byte pattern>[,<hex byte pattern>,...]
+
+Example(s): msgset start 0x01 0x00, 0x01 0x04, 0x07
+            msgset end 0x99
+		'''
+		msgSet(arg.split())
+
+	def do_capture(self, arg):
+		'''
+Description: start forwarding-and-capturing UART traffic
+
+Usage:	capture [output file]
+
+Example(s): capture
+            capture sniffed.out
+		'''
+		captureTraffic(arg.split())
+
+	def do_dump(self, arg):
+		'''
+Description: dump capture file contents
+
+Usage: dump <capture file>
+
+Example(s): dump sniffed.out
+		'''
+		dumpCapture(arg.split())
+
+	def do_replay(self, arg):
+		'''
+Description: start replaying-and-forwarding UART traffic
+
+Usage: replay <capture file> [line number(s) to replay]
+
+Example(s): replay sniffed.out
+            replay sniffed.out 1,4
+            replay sniffed.out 2-10
+		'''
+		replayTraffic(arg.split())
+
+	def do_exit(self, arg):
+		quit()
+
+	def do_quit(self, arg):
+		quit()
 
 ############################
 # main!
@@ -473,27 +470,7 @@ def main():
 	signal.signal(signal.SIGINT, signalHandler)
 
 	# "interactive prompt" (a.k.a. REPL).
-	while True:
-		promptInput = input('> ')
-		promptList = promptInput.split(' ')
-		promptCmd = promptList[0].lower()
-		# Lookup command.
-		if promptCmd in gReplCmds:
-			promptCmdVal = gReplCmds[promptCmd]
-			if type(promptCmdVal) is str:
-				# This command is an alias for another, look that other one up.
-				promptCmdVal = gReplCmds[promptCmdVal]
-			if 'method' in promptCmdVal:
-				# Call the method associated with the command.
-				if len(promptList) > 1:
-					promptCmdVal['method'](promptList[1:])
-				else:
-					promptCmdVal['method']()
-			else:
-				print('Welp, this command is TBD!  :)')
-		elif len(promptCmd):
-			print('Unknown command \'%s\', type \'help\' for a list of valid commands.' %
-				(promptCmd))
+	repl().cmdloop()
 
 if __name__ == "__main__":
 	main()
