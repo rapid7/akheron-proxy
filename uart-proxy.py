@@ -126,6 +126,21 @@ def msgSet(args = ''):
 				delim.append(hex(int(j, 16)))
 		msgDelims[settingType].append(delim)
 
+def portSetApply():
+	portSettingsMissing = []
+	if not portSettings["A"]["dev"]:
+		portSettingsMissing.append('A')
+	if not portSettings["B"]["dev"]:
+		portSettingsMissing.append('B')
+	if len(portSettingsMissing) > 0:
+		portStr = "' and '".join(portSettingsMissing)
+		print('Port \'%s\' missing settings, please use the \'portset\' command to set device and baud.' % (portStr))
+		return
+	# Apply serial port settings and open ports.
+	portA = serial.Serial(portSettings["A"]["dev"], portSettings["A"]["baud"], timeout=0);
+	portB = serial.Serial(portSettings["B"]["dev"], portSettings["B"]["baud"], timeout=0);
+	return portA, portB
+
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
 #
 # Return: matched string (delim) value (empty string if no match).
@@ -191,18 +206,7 @@ def captureTraffic(args = ''):
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
-	portSettingsMissing = []
-	if not portSettings["A"]["dev"]:
-		portSettingsMissing.append('A')
-	if not portSettings["B"]["dev"]:
-		portSettingsMissing.append('B')
-	if len(portSettingsMissing) > 0:
-		portStr = "' and '".join(portSettingsMissing)
-		print('Port \'%s\' missing settings, please use the \'portset\' command to set device and baud.' % (portStr))
-		return
-	# Apply serial port settings and open ports.
-	portA = serial.Serial(portSettings["A"]["dev"], portSettings["A"]["baud"], timeout=0);
-	portB = serial.Serial(portSettings["B"]["dev"], portSettings["B"]["baud"], timeout=0);
+	portA, portB = portSetApply()
 
 	print('Sniffing between ports \'%s\' <-> \'%s\'' % (portSettings["A"]["dev"], portSettings["B"]["dev"]), end = '')
 	if captureFile:
@@ -346,12 +350,29 @@ def replayTraffic(args = ''):
 	else:
 		lines = list(range(1,len(replayFileContents) + 1))
 
+	# Apply serial port settings
+	portA, portB = portSetApply()
+
+	# Replay user-specfied traffic
 	lineNum = 1
+	direction = "unknown"
 	for line in replayFileContents:
-		# todo track direction
+		startIndex = 0
+		if line.find("A -> B") == 0 or line.find("B -> A") == 0:
+			startIndex = line.find(':') + 1
+			direction = line[0:startIndex - 1]
 		if lineNum in lines:
-			print('%s' % (line.rstrip()))
+			if direction == "unknown":
+				print('Could not detect the direction to send replay data, skipping line %d...' % (lineNum))
+			else:
+				lineData = list(map(lambda b: int(b, 16), line[startIndex:].rstrip().split()))
+				print('%s: %s' % (direction, line[startIndex:].rstrip()))
+				if direction == "A -> B":
+					portB.write(lineData)
+				else:
+					portA.write(lineData)
 		lineNum += 1
+
 
 class repl(cmd.Cmd):
 	prompt = '> '
