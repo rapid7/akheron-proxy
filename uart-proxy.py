@@ -102,8 +102,17 @@ def portSet(args = ''):
 
 	# If we got here, it worked, so save off the values...
 	portTry.close()
+
 	portSettings[port]["dev"] = deviceName
 	portSettings[port]["baud"] = int(baud)
+
+	# Warn if we're setting the port to the same device as the other port, as that's likely not wanted...
+	if port == 'A':
+		otherPort = 'B'
+	else:
+		otherPort = 'A'
+	if portSettings[port]["dev"] == portSettings[otherPort]["dev"]:
+		print("WARNING: both port 'A' and 'B' are set to device %s, YOU PROBABLY DON'T WANT THIS." % (portSettings[port]["dev"]))
 
 # 'msgset' command, allows user to set start-of-message and -end-of-message delimiters.
 def msgSet(args = ''):
@@ -197,7 +206,11 @@ def captureTraffic(args = ''):
 		return
 	elif len(args) == 1:
 		captureFileName = args[0]
-		captureFile = open(captureFileName, "w")
+		try:
+			captureFile = open(captureFileName, "w")
+		except IOError:
+			print('File \'%s\' could not be opened' % (captureFileName))
+			return
 
 	global checkMsgBufferMax
 	checkMsgBufferMax = 0
@@ -316,8 +329,12 @@ def dumpCapture(args = ''):
 		print('Incorrect number of args, type \'help\' for usage')
 		return
 	dumpFileName = args[0]
-	# TODO errror handling
-	dumpFile = open(dumpFileName, "r")
+
+	try:
+		dumpFile = open(dumpFileName, "r")
+	except IOError:
+		print('File \'%s\' could not be opened' % (dumpFileName))
+		return
 	dumpFileContents = dumpFile.readlines()
 
 	lineNum = 1
@@ -331,8 +348,11 @@ def replayTraffic(args = ''):
 		print('Incorrect number of args, type \'help\' for usage')
 		return
 	replayFileName = args[0]
-	replayFile = open(replayFileName, "r")
-	# TODO errror handling
+	try:
+		replayFile = open(replayFileName, "r")
+	except IOError:
+		print('File \'%s\' could not be opened' % (replayFileName))
+		return
 	replayFileContents = replayFile.readlines()
 
 	lines = []
