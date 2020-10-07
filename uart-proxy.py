@@ -227,6 +227,7 @@ def captureTraffic(args = ''):
 	else:
 		print()
 	print('Press CTRL-C to stop...')
+	print()
 
 	lastPrinted = 'None'
 	matched = {}
@@ -249,14 +250,17 @@ def captureTraffic(args = ''):
 		if len(dataA) > 0:
 			if lastPrinted != 'A':
 				# Last data we printed was from the other port, print our current port source.
-				tee()
+				if lastPrinted != 'None':
+					tee()
 				tee('A -> B: ', '')
 				lastPrinted = 'A'
+				bytesOnLine = 0
 			else:
 				if len(matched["A"]["end"]) > 0:
 					# The previous byte we looked at matched an end-of-message delim, go to new line.
 					tee()
 					tee('        ', '')
+					bytesOnLine = 0
 			matched["A"]["start"] = ""
 			matched["A"]["end"] = ""
 			for b in dataA:
@@ -268,13 +272,18 @@ def captureTraffic(args = ''):
 						# It was a multi-byte start-of-message delim, so remove previous data bytes
 						# that we had alrady printed.
 						tee("\b" * 5 * (len(matched["A"]["start"]) - 1), '')
+					if bytesOnLine > len(matched["A"]["start"]):
+						# Need to erase and go to a new line now (also indent!)
 						tee(" " * 5 * (len(matched["A"]["start"]) - 1), '')
-					tee()
-					tee('        ' + " ".join(format("0x%02x" % int(n, 16)) for n in matched["A"]["start"]) + " ", '')
+						tee()
+						tee('        ', '')
+					tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched["A"]["start"]) + " ", '')
+					bytesOnLine = len(matched["A"]["start"])
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["A"]["end"] = checkMsg("A", "end")
 					tee('0x%02x ' % b, '')
+					bytesOnLine += 1
 			# Send byte along to port B.
 			portB.write(dataA)
 
@@ -287,14 +296,17 @@ def captureTraffic(args = ''):
 		if len(dataB) > 0:
 			if lastPrinted != 'B':
 				# Last data we printed was from the other port, print our current port source.
-				tee()
+				if lastPrinted != 'None':
+					tee()
 				tee('B -> A: ', '')
 				lastPrinted = 'B'
+				bytesOnLine = 0
 			else:
 				if len(matched["B"]["end"]) > 0:
 					# The previous byte we looked at matched an end-of-message delim, go to new line.
 					tee()
 					tee('        ', '')
+					bytesOnLine = 0
 			matched["B"]["start"] = ""
 			matched["B"]["end"] = ""
 			for b in dataB:
@@ -306,13 +318,17 @@ def captureTraffic(args = ''):
 						# It was a multi-byte start-of-message delim, so remove previous data bytes
 						# that we had alrady printed.
 						tee("\b" * 5 * (len(matched["B"]["start"]) - 1), '')
+					if bytesOnLine > len(matched["B"]["start"]):
 						tee(" " * 5 * (len(matched["B"]["start"]) - 1), '')
-					tee()
-					tee('        ' + " ".join(format("0x%02x" % int(n, 16)) for n in matched["B"]["start"]) + " ", '')
+						tee()
+						tee('        ', '')
+					tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched["B"]["start"]) + " ", '')
+					bytesOnLine = len(matched["B"]["start"])
 				else:
 					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
 					matched["B"]["end"] = checkMsg("B", "end")
 					tee('0x%02x ' % b, '')
+					bytesOnLine += 1
 			# Send byte along to port A.
 			portA.write(dataB)
 	portA.close()
