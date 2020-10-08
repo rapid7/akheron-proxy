@@ -96,8 +96,8 @@ def portSet(args = ''):
 	# Dumb 'validation' of device and baud values: just try opening it and error if it didn't work!
 	try:
 		portTry = serial.Serial(deviceName, int(baud), timeout=0);
-	except:
-		print('Could not open device "%s" at baud "%s"' % (deviceName, baud));
+	except serial.SerialException as e:
+		print('Could not open device "%s" at baud "%s": %s' % (deviceName, baud, str(e)));
 		return
 
 	# If we got here, it worked, so save off the values...
@@ -137,18 +137,23 @@ def msgSet(args = ''):
 
 def portSetApply():
 	portSettingsMissing = []
-	if not portSettings["A"]["dev"]:
-		portSettingsMissing.append('A')
-	if not portSettings["B"]["dev"]:
-		portSettingsMissing.append('B')
+	for p in ['A', 'B']:
+		if not portSettings[p]["dev"]:
+			portSettingsMissing.append(p)
 	if len(portSettingsMissing) > 0:
 		portStr = "' and '".join(portSettingsMissing)
 		print('Port \'%s\' missing settings, please use the \'portset\' command to set device and baud.' % (portStr))
-		return
+		return None, None
+
 	# Apply serial port settings and open ports.
-	portA = serial.Serial(portSettings["A"]["dev"], portSettings["A"]["baud"], timeout=0);
-	portB = serial.Serial(portSettings["B"]["dev"], portSettings["B"]["baud"], timeout=0);
-	return portA, portB
+	port = {}
+	for p in ['A', 'B']:
+		try:
+			port[p] = serial.Serial(portSettings[p]["dev"], portSettings[p]["baud"], timeout=0);
+		except serial.SerialException as e:
+			print('Could not open device "%s": %s' % (portSettings[p]["dev"], str(e)));
+			return None, None
+	return port['A'], port['B']
 
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
 #
@@ -208,8 +213,8 @@ def captureTraffic(args = ''):
 		captureFileName = args[0]
 		try:
 			captureFile = open(captureFileName, "w")
-		except IOError:
-			print('File \'%s\' could not be opened' % (captureFileName))
+		except IOError as e:
+			print('File \'%s\' could not be opened: %s' % (captureFileName, str(e)))
 			return
 
 	global checkMsgBufferMax
@@ -219,7 +224,10 @@ def captureTraffic(args = ''):
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
-	portA, portB = portSetApply()
+	port = {}
+	port['A'], port['B'] = portSetApply()
+	if not port['A']:
+		return
 
 	print('Sniffing between ports \'%s\' <-> \'%s\'' % (portSettings["A"]["dev"], portSettings["B"]["dev"]), end = '')
 	if captureFile:
@@ -231,108 +239,67 @@ def captureTraffic(args = ''):
 
 	lastPrinted = 'None'
 	matched = {}
-	matched["A"] = {}
-	matched["A"]["start"] = ""
-	matched["A"]["end"] = ""
-	matched["B"] = {}
-	matched["B"]["start"] = ""
-	matched["B"]["end"] = ""
+	for p in ['A', 'B']:
+		matched[p] = {}
+		matched[p]["start"] = ""
+		matched[p]["end"] = ""
 	global sniffRunning
 	sniffRunning = True
 	while sniffRunning:
 
-		# Process incoming data from port 'A'...
-		try:
-			dataA = portA.read(10)
-		except serial.serialutil.SerialException:
-			sniffRunning = False
-			continue
-		if len(dataA) > 0:
-			if lastPrinted != 'A':
-				# Last data we printed was from the other port, print our current port source.
-				if lastPrinted != 'None':
-					tee()
-				tee('A -> B: ', '')
-				lastPrinted = 'A'
-				bytesOnLine = 0
+		for p in ['A', 'B']:
+			if p == 'A':
+				outp = 'B'
 			else:
-				if len(matched["A"]["end"]) > 0:
-					# The previous byte we looked at matched an end-of-message delim, go to new line.
-					tee()
-					tee('        ', '')
+				outp = 'A'
+			# Process incoming data from port 'A'...
+			try:
+				data = port[p].read(10)
+			except serial.serialutil.SerialException:
+				sniffRunning = False
+				continue
+			if len(data) > 0:
+				if lastPrinted != p:
+					# Last data we printed was from the other port, print our current port source.
+					if lastPrinted != 'None':
+						tee()
+					tee('%c -> %c: ' % (p, outp), '')
+					lastPrinted = p
 					bytesOnLine = 0
-			matched["A"]["start"] = ""
-			matched["A"]["end"] = ""
-			for b in dataA:
-				# Check if each incoming byte makes a start-of-message delim match.
-				matched["A"]["start"] = checkMsg("A", "start", b)
-				if len(matched["A"]["start"]) > 0:
-					# We did match a start-of-message delim. 
-					if len(matched["A"]["start"]) > 1:
-						# It was a multi-byte start-of-message delim, so remove previous data bytes
-						# that we had alrady printed.
-						tee("\b" * 5 * (len(matched["A"]["start"]) - 1), '')
-					if bytesOnLine > len(matched["A"]["start"]):
-						# Need to erase and go to a new line now (also indent!)
-						tee(" " * 5 * (len(matched["A"]["start"]) - 1), '')
+				else:
+					if len(matched[p]["end"]) > 0:
+						# The previous byte we looked at matched an end-of-message delim, go to new line.
 						tee()
 						tee('        ', '')
-					tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched["A"]["start"]) + " ", '')
-					bytesOnLine = len(matched["A"]["start"])
-				else:
-					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
-					matched["A"]["end"] = checkMsg("A", "end")
-					tee('0x%02x ' % b, '')
-					bytesOnLine += 1
-			# Send byte along to port B.
-			portB.write(dataA)
+						bytesOnLine = 0
+				matched[p]["start"] = ""
+				matched[p]["end"] = ""
+				for b in data:
+					# Check if each incoming byte makes a start-of-message delim match.
+					matched[p]["start"] = checkMsg(p, "start", b)
+					if len(matched[p]["start"]) > 0:
+						# We did match a start-of-message delim. 
+						if len(matched[p]["start"]) > 1:
+							# It was a multi-byte start-of-message delim, so remove previous data bytes
+							# that we had alrady printed.
+							tee("\b" * 5 * (len(matched[p]["start"]) - 1), '')
+						if bytesOnLine >= len(matched[p]["start"]):
+							# Need to erase and go to a new line now (also indent!)
+							tee(" " * 5 * (len(matched[p]["start"]) - 1), '')
+							tee()
+							tee('        ', '')
+						tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched[p]["start"]) + " ", '')
+						bytesOnLine = len(matched[p]["start"])
+					else:
+						# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
+						matched[p]["end"] = checkMsg(p, "end")
+						tee('0x%02x ' % b, '')
+						bytesOnLine += 1
+				# Send byte along to the other port now...
+				port[outp].write(data)
 
-		# Process incoming data from port 'B'...
-		try:
-			dataB = portB.read(10)
-		except serial.serialutil.SerialException:
-			sniffRunning = False
-			continue
-		if len(dataB) > 0:
-			if lastPrinted != 'B':
-				# Last data we printed was from the other port, print our current port source.
-				if lastPrinted != 'None':
-					tee()
-				tee('B -> A: ', '')
-				lastPrinted = 'B'
-				bytesOnLine = 0
-			else:
-				if len(matched["B"]["end"]) > 0:
-					# The previous byte we looked at matched an end-of-message delim, go to new line.
-					tee()
-					tee('        ', '')
-					bytesOnLine = 0
-			matched["B"]["start"] = ""
-			matched["B"]["end"] = ""
-			for b in dataB:
-				# Check if each incoming byte makes a start-of-message delim match.
-				matched["B"]["start"] = checkMsg("B", "start", b)
-				if len(matched["B"]["start"]) > 0:
-					# We did match a start-of-message delim. 
-					if len(matched["B"]["start"]) > 1:
-						# It was a multi-byte start-of-message delim, so remove previous data bytes
-						# that we had alrady printed.
-						tee("\b" * 5 * (len(matched["B"]["start"]) - 1), '')
-					if bytesOnLine > len(matched["B"]["start"]):
-						tee(" " * 5 * (len(matched["B"]["start"]) - 1), '')
-						tee()
-						tee('        ', '')
-					tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched["B"]["start"]) + " ", '')
-					bytesOnLine = len(matched["B"]["start"])
-				else:
-					# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
-					matched["B"]["end"] = checkMsg("B", "end")
-					tee('0x%02x ' % b, '')
-					bytesOnLine += 1
-			# Send byte along to port A.
-			portA.write(dataB)
-	portA.close()
-	portB.close()
+	for p in ['A', 'B']:
+		port[p].close()
 	if captureFile:
 		captureFile.close()
 		captureFile = None
@@ -348,8 +315,8 @@ def dumpCapture(args = ''):
 
 	try:
 		dumpFile = open(dumpFileName, "r")
-	except IOError:
-		print('File \'%s\' could not be opened' % (dumpFileName))
+	except IOError as e:
+		print('File \'%s\' could not be opened: %s' % (dumpFileName, str(e)))
 		return
 	dumpFileContents = dumpFile.readlines()
 
@@ -366,8 +333,8 @@ def replayTraffic(args = ''):
 	replayFileName = args[0]
 	try:
 		replayFile = open(replayFileName, "r")
-	except IOError:
-		print('File \'%s\' could not be opened' % (replayFileName))
+	except IOError as e:
+		print('File \'%s\' could not be opened: %s' % (replayFileName, str(e)))
 		return
 	replayFileContents = replayFile.readlines()
 
@@ -388,6 +355,8 @@ def replayTraffic(args = ''):
 
 	# Apply serial port settings
 	portA, portB = portSetApply()
+	if not portA:
+		return
 
 	# Replay user-specfied traffic
 	lineNum = 1
@@ -490,6 +459,9 @@ Example(s): replay sniffed.out
 
 	def do_quit(self, arg):
 		quit()
+
+	def emptyline(self):
+		pass
 
 ############################
 # main!
