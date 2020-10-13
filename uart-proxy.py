@@ -77,9 +77,8 @@ def portGet(args = ''):
 	for p in ['A', 'B']:
 		print('Port \'%s\': ' % (p), end ='')
 		if portSettings[p]['dev']:
-			print('device \'%s\' at %i' % (portSettings[p]['dev'], portSettings[p]['baud']))
-		else:
-			print('not set')
+			print('device \'%s\' at %i' % (portSettings[p]['dev'], portSettings[p]['baud']), end = '')
+		print()
 
 # 'portset' command, allows user to set serial port settings.
 def portSet(args = ''):
@@ -114,11 +113,21 @@ def portSet(args = ''):
 	if portSettings[port]["dev"] == portSettings[otherPort]["dev"]:
 		print("WARNING: both port 'A' and 'B' are set to device %s, YOU PROBABLY DON'T WANT THIS." % (portSettings[port]["dev"]))
 
-# 'msgset' command, allows user to set start-of-message and -end-of-message delimiters.
+# 'msgget' command, allows user to dump current start-of-message and end-of-meessage delimeters.
+def msgGet(args = ''):
+	for d in ['start', 'end']:
+		print('%5s delimiters: ' % (d), end ='')
+		if msgDelims[d]:
+			for e in msgDelims[d]:
+				print(" ".join(format("0x%02x" % int(n, 16)) for n in e) + ", ", end = '')
+			print('\b\b ', end = '')
+		print()
+
+# 'msgset' command, allows user to set start-of-message and end-of-message delimiters.
 def msgSet(args = ''):
 	global msgDelims
 
-	if len(args) < 2:
+	if len(args) < 1:
 		print('Incorrect number of args, type \'help\' for usage')
 		return
 	settingType = args[0]
@@ -409,6 +418,14 @@ Example(s): portset A /dev/ttyUSB0 115200
             portset B /dev/ttyUSB0 115200
 		'''
 		portSet(arg.split())
+
+	def do_msgget(self, arg):
+		'''
+Description: dump current message start/end delimiter settings
+
+Usage: msgget
+		'''
+		msgGet(arg.split())
 
 	def do_msgset(self, arg):
 		'''
