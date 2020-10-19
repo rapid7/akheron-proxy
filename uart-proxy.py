@@ -43,7 +43,8 @@ sniffRunning = False
 
 ### Methods ###
 
-# handle signals the program receives.
+# Handle signals the program receives.
+# Returns: n/a
 def signalHandler(signum, frame):
 	global sniffRunning
 
@@ -59,7 +60,8 @@ def signalHandler(signum, frame):
 				captureFile.close()
 			exit()
 
-# banner displayed at startup.
+# Banner displayed at startup.
+# Returns: n/a
 def welcomeBanner():
 	print('''
 ##########################
@@ -69,6 +71,9 @@ Welcome to the UART Proxy!
 	''' % (version))
 
 # 'list' command, displays available serial ports.
+# args:
+#   '-v': enable verbose listing of more details
+# Returns: n/a
 def listSerialPorts(args = ""):
 	if len(args) == 1 and args[0] == "-v":
 		verbose = True
@@ -76,7 +81,6 @@ def listSerialPorts(args = ""):
 		verbose = False
 
 	iterator = sorted(comports())
-	# list ports
 	for n, port_info in enumerate(iterator):
 		print("{}".format(port_info.device))
 		if verbose:
@@ -84,6 +88,8 @@ def listSerialPorts(args = ""):
 			print("    hwid: {}".format(port_info.hwid))
 
 # 'portget' command, allows user to dump current serial port settings in the app.
+# args: n/a
+# Returns: n/a
 def portGet(args = ""):
 	for p in ["A", "B"]:
 		print("Port \"%s\": " % (p), end ="")
@@ -92,6 +98,11 @@ def portGet(args = ""):
 		print()
 
 # 'portset' command, allows user to set serial port settings.
+# args:
+#   [0]: specifies port ("A" or "B") being set
+#   [1]: specifies the serial device name  (e.g. "/dev/ttyUSB0")
+#   [2]: specifies the baud speed (e.g. 115200)
+# Returns: n/a
 def portSet(args = ""):
 	if len(args) != 3:
 		print("Incorrect number of args, type \"help\" for usage")
@@ -124,7 +135,8 @@ def portSet(args = ""):
 	if portSettings[port]["dev"] == portSettings[otherPort]["dev"]:
 		print("WARNING: both port \"A\" and \"B\" are set to device %s, YOU PROBABLY DON'T WANT THIS." % (portSettings[port]["dev"]))
 
-# 'msgget' command, allows user to dump current start-of-message and end-of-meessage delimeters.
+# 'msgget' command, allows user to dump current start-of-message and end-of-message delimeters.
+# Returns: n/a
 def msgGet(args = ""):
 	for d in ["start", "end"]:
 		print("%5s delimiters: " % (d), end ="")
@@ -135,6 +147,11 @@ def msgGet(args = ""):
 		print()
 
 # 'msgset' command, allows user to set start-of-message and end-of-message delimiters.
+# args:
+#   [0]: specifies type of message delimiter ("start" or "end") being set
+#   [1]: specifies the value(s) to be considered delimeters
+#        (values separated by spaces are considered a sequence, commas denote separate delimiters)
+# Returns: n/a
 def msgSet(args = ""):
 	global msgDelims
 
@@ -155,7 +172,8 @@ def msgSet(args = ""):
 				delim.append(hex(int(j, 16)))
 		msgDelims[settingType].append(delim)
 
-# apply serial port device settings before executing sniffing/replay operations.
+# Apply serial port device settings before executing sniffing/replay operations.
+# Returns: Serial objects for open ports "A" and "B"
 def portSetApply():
 	portSettingsMissing = []
 	for p in ["A", "B"]:
@@ -177,8 +195,10 @@ def portSetApply():
 	return port["A"], port["B"]
 
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
-#
-# Return: matched string (delim) value (empty string if no match).
+# port: indicates which port ("A" or "B") delimiters should be used for this check
+# startOrEnd: indicates if the "start" or "end" message delimiters should be checked.
+# byte: new byte of data received
+# Returns: matched string (delim) value OR an empty string if no match
 def checkMsg(port, startOrEnd, byte = None):
 	global checkMsgBufferMax
 
@@ -205,7 +225,10 @@ def checkMsg(port, startOrEnd, byte = None):
 	return matchedStr
 
 # Similar to the *nix command 'tee', this method sends output to both the display
-# and capture file, if in use.
+#   and capture file, if in use.
+# string: string value to display+write
+# end: trailing character for 'string'
+# Returns: n/a
 def tee(string = "", end = "\n"):
 	global captureFileSize
 
@@ -223,6 +246,9 @@ def tee(string = "", end = "\n"):
 	print(string, end = end, flush = True)
 
 # Sniffing traffic between two ports.
+# args:
+#   [0]: filename to write captured data to (OPTIONAL)
+# Returns: n/a
 def captureTraffic(args = ""):
 	global captureFile
 	global captureFileSize
@@ -247,9 +273,11 @@ def captureTraffic(args = ""):
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
+	# Open the ports and apply the settings...
 	port = {}
 	port["A"], port["B"] = portSetApply()
 	if not port["A"]:
+		# Something failed in our open+settings attempt, bail out...
 		return
 
 	print("Sniffing between ports \"%s\" <-> \"%s\"" % (portSettings["A"]["dev"], portSettings["B"]["dev"]), end = "")
@@ -269,13 +297,13 @@ def captureTraffic(args = ""):
 	global sniffRunning
 	sniffRunning = True
 	while sniffRunning:
-
+		# Alternate reading data from each port in the connection...
 		for p in ["A", "B"]:
 			if p == "A":
 				outp = "B"
 			else:
 				outp = "A"
-			# Process incoming data from port 'A'...
+			# Process incoming data from port 'p'...
 			try:
 				data = port[p].read(10)
 			except serial.serialutil.SerialException:
@@ -321,6 +349,7 @@ def captureTraffic(args = ""):
 				# Send byte along to the other port now...
 				port[outp].write(data)
 
+	# Sniffing stopped, close ports and capture file, if applicable.
 	for p in ["A", "B"]:
 		port[p].close()
 	if captureFile:
@@ -330,6 +359,9 @@ def captureTraffic(args = ""):
 	print("\nCapture stopped\n\n")
 
 # Dump capture file, along with line numbers.
+# args:
+#   [0]: filename to dump captured data from
+# Returns: n/a
 def dumpCapture(args = ""):
 	if len(args) != 1:
 		print("Incorrect number of args, type \"help\" for usage")
@@ -349,6 +381,10 @@ def dumpCapture(args = ""):
 		lineNum += 1
 
 # Replaying traffic between two ports.
+# args:
+#   [0]: filename to replay captured data from
+#   [1]: line(s) of the replay file of the data to be replayed, commas and hyphens supported (OPTIONAL)
+# Returns: n/a
 def replayTraffic(args = ""):
 	if len(args) == 0 or len(args) > 2:
 		print("Incorrect number of args, type \"help\" for usage")
