@@ -20,15 +20,20 @@ except ImportError as e:
 ### Globals ###
 version = "0.1"
 
-# Port settings
+# Port settings, as provided via the 'portset' command.
 portSettings = {}
 portSettings["A"] = {"dev": "", "baud": 0}
 portSettings["B"] = {"dev": "", "baud": 0}
 
-# Delemiters for start-of-message and end-of-message, as provided via 'msgset' command.
+# Delemiters for start-of-message and end-of-message, as provided via 'delimset' command.
 msgDelims = {}
 msgDelims["start"] = []
 msgDelims["end"] = []
+
+# Pattern replacement/substitution, as provided via the 'replaceset' command.
+replacePatterns = {}
+replacePatterns["A"] = {}
+replacePatterns["B"] = {}
 
 # Temp buffers for holding incoming (RX'd) data to check against msgDelims.
 checkMsgBuffers = {}
@@ -135,9 +140,9 @@ def portSet(args = ""):
 	if portSettings[port]["dev"] == portSettings[otherPort]["dev"]:
 		print("WARNING: both port \"A\" and \"B\" are set to device %s, YOU PROBABLY DON'T WANT THIS." % (portSettings[port]["dev"]))
 
-# 'msgget' command, allows user to dump current start-of-message and end-of-message delimeters.
+# 'delimget' command, allows user to dump current start-of-message and end-of-message delimeters.
 # Returns: n/a
-def msgGet(args = ""):
+def delimGet(args = ""):
 	for d in ["start", "end"]:
 		print("%5s delimiters: " % (d), end ="")
 		if msgDelims[d]:
@@ -146,13 +151,14 @@ def msgGet(args = ""):
 			print("\b\b ", end = "")
 		print()
 
-# 'msgset' command, allows user to set start-of-message and end-of-message delimiters.
+# 'delimset' command, allows user to set start-of-message and end-of-message delimiters.
 # args:
 #   [0]: specifies type of message delimiter ("start" or "end") being set
 #   [1]: specifies the value(s) to be considered delimeters
-#        (values separated by spaces are considered a sequence, commas denote separate delimiters)
+#        - values separated by spaces are considered a sequence
+#        - commas denote separate delimiters
 # Returns: n/a
-def msgSet(args = ""):
+def delimSet(args = ""):
 	global msgDelims
 
 	if len(args) < 1:
@@ -193,6 +199,70 @@ def portSetApply():
 			print("Could not open device \"%s\": %s" % (portSettings[p]["dev"], str(e)));
 			return None, None
 	return port["A"], port["B"]
+
+# 'replaceget' command, allows user to dump current "substitute pattern-X-for-Y" values.
+# Returns: n/a
+def replaceGet(args = ""):
+	for p in ["A", "B"]:
+		print("Replace port %c pattern X -> pattern Y:" % p)
+		for r in replacePatterns[p]:
+			print("  %s -> %s" % (str(r), str(" ".join(replacePatterns[p][r]))))
+
+# 'replaceset' command, allows user to set "substitute pattern-X-for-Y" values.
+# args:
+#   [0]: specifies the port's ("A" or "B") traffic to apply these pattern replacements on
+#   [1]: specifies the patterns to be replaces/swapped/substituted
+#        - values separated by spaces are considered a sequence
+#        - "arrow" (i.e. "->") denotes pattern X (left-hand side) should be swapped for Y (RHS)
+#        - commas denote separate "substitute pattern-X-for-Y" pairs
+# Returns: n/a
+def replaceSet(args = ""):
+	global replacePatterns
+
+	if len(args) < 1:
+		print("Incorrect number of args, type \"help\" for usage")
+		return
+	port = args[0]
+	valuesStr = " ".join(args[1:])
+	values = valuesStr.split(",")
+	if port != "A" and port != "B":
+		print("Invalid \"port\" value, type \"help\" for usage")
+		return
+	replacePatterns[port] = {}
+	for i in values:
+		if len(i) == 0:
+			continue
+		lhsRhsList = i.split("->")
+		if len(lhsRhsList) != 2:
+			print("Invalid replace pattern provided, skipping \"%s\"" % i)
+			continue
+		if len(lhsRhsList[0]) == 0 or len(lhsRhsList[1]) == 0:
+			print("Invalid replace pattern provided, skipping \"%s\"" % i)
+			continue
+		pattern = {}
+		index = 0
+		for p in ["LHS", "RHS"]:
+			pattern[p] = []
+			for k in lhsRhsList[index].split(" "):
+				if len(k) > 0:
+					pattern[p].append(hex(int(k, 16)))
+			index += 1
+		replacePatterns[port][" ".join(pattern["LHS"])] = pattern["RHS"]
+
+def replacePatternsIfMatched(data, patterns):
+	if len(patterns) == 0:
+		# No patterns to match on, we're done
+		return
+	for k,v in patterns.items():
+		kList = k.split(" ")
+		matchList = [int(i, 16) for i in kList]
+		lenML = len(matchList)
+		#if any(matchList == data[i:i + lenML] for i in range(len(data)-lenML + 1)):
+		for i in range(len(data)-lenML + 1):
+			if matchList == data[i:i + lenML]:
+				data[i:i + lenML] = [int(val, 16) for val in v]
+				break
+	return
 
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
 # port: indicates which port ("A" or "B") delimiters should be used for this check
@@ -250,6 +320,7 @@ def tee(string = "", end = "\n"):
 #   [0]: filename to write captured data to (OPTIONAL)
 # Returns: n/a
 def captureTraffic(args = ""):
+	global replacePatterns
 	global captureFile
 	global captureFileSize
 
@@ -268,8 +339,10 @@ def captureTraffic(args = ""):
 
 	global checkMsgBufferMax
 	checkMsgBufferMax = 0
+	delimMatching = False
 	# Set checkMsgBufferMax to the 'longest' delimiter length.
 	for i in msgDelims["start"] + msgDelims["end"]:
+		delimMatching = True
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
@@ -288,12 +361,20 @@ def captureTraffic(args = ""):
 	print("Press CTRL-C to stop...")
 	print()
 
+	# When matching on start/stop message delimters, we'll buffer the data in case
+	# there are replacements/substitutions to make...
+	if delimMatching:
+		portDataOutBuffer = {}
+
 	lastPrinted = "None"
 	matched = {}
 	for p in ["A", "B"]:
 		matched[p] = {}
 		matched[p]["start"] = ""
 		matched[p]["end"] = ""
+		if delimMatching:
+			portDataOutBuffer[p] = []
+
 	global sniffRunning
 	sniffRunning = True
 	while sniffRunning:
@@ -329,6 +410,7 @@ def captureTraffic(args = ""):
 					# Check if each incoming byte makes a start-of-message delim match.
 					matched[p]["start"] = checkMsg(p, "start", b)
 					if len(matched[p]["start"]) > 0:
+						portDataOutBuffer[outp].append(b)
 						# We did match a start-of-message delim. 
 						if len(matched[p]["start"]) > 1:
 							# It was a multi-byte start-of-message delim, so remove previous data bytes
@@ -341,13 +423,25 @@ def captureTraffic(args = ""):
 							tee("        ", "")
 						tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched[p]["start"]) + " ", "")
 						bytesOnLine = len(matched[p]["start"])
+						# Send the buffered message out the correct port and reset the databuffer...
+						lastDataIndex = len(portDataOutBuffer[outp]) - len(matched[p]["start"])
+						port[outp].write(portDataOutBuffer[outp][:lastDataIndex])
+						portDataOutBuffer[outp] = [int(n, 16) for n in matched[p]["start"]]
 					else:
-						# Data byte wasn't a start-of-message delim match, check if end-of-message delim..
+						# Data byte wasn't a start-of-message delim match, check if end-of-message delim...
 						matched[p]["end"] = checkMsg(p, "end")
 						tee("0x%02x " % b, "")
 						bytesOnLine += 1
-				# Send byte along to the other port now...
-				port[outp].write(data)
+						if delimMatching:
+							portDataOutBuffer[outp].append(b)
+						if len(matched[p]["end"]) > 0:
+							# Send the buffered message out the correct port and reset the databuffer...
+							replacePatternsIfMatched(portDataOutBuffer[outp], replacePatterns[p])
+							port[outp].write(portDataOutBuffer[outp])
+							portDataOutBuffer[outp] = []
+					if not delimMatching:
+						# Send byte along to the other port now...
+						port[outp].write([b])
 
 	# Sniffing stopped, close ports and capture file, if applicable.
 	for p in ["A", "B"]:
@@ -465,28 +559,47 @@ Description: apply UART port settings
 Usage: portset <A|B> <device> <baud>
 
 Example(s): portset A /dev/ttyUSB0 115200
-            portset B /dev/ttyUSB0 115200
+            portset B /dev/ttyUSB1 115200
 		'''
 		portSet(arg.split())
 
-	def do_msgget(self, arg):
+	def do_delimget(self, arg):
 		'''
 Description: dump current message start/end delimiter settings
 
-Usage: msgget
+Usage: delimget
 		'''
-		msgGet(arg.split())
+		delimGet(arg.split())
 
-	def do_msgset(self, arg):
+	def do_delimset(self, arg):
 		'''
 Description: apply message parsing settings
 
-Usage:	msgset <start|end> <hex byte pattern>[,<hex byte pattern>,...]
+Usage:	delimset <start|end> <hex byte pattern>[,<hex byte pattern>,...]
 
-Example(s): msgset start 0x01 0x00, 0x01 0x04, 0x07
-            msgset end 0x99
+Example(s): delimset start 0x01 0x00, 0x01 0x04, 0x07
+            delimset end 0x99
 		'''
-		msgSet(arg.split())
+		delimSet(arg.split())
+
+	def do_replaceget(self, arg):
+		'''
+Description: dump current message pattern replace/substitute settings
+
+Usage: replaceget
+		'''
+		replaceGet(arg.split())
+
+	def do_replaceset(self, arg):
+		'''
+Description: apply message pattern replace/substitute settings
+
+Usage:	replaceset <A|B> <hex byte pattern to match on> -> <hex byte pattern to replace with>[,<hex byte pattern to match on>,...]
+
+Example(s): replaceset A 0x31 -> 0x32
+            replaceset A 0x31 0x32 0x33 -> 0x21 0x22 0x23, 0x45 0x46 -> 0x55
+		'''
+		replaceSet(arg.split())
 
 	def do_capture(self, arg):
 		'''
