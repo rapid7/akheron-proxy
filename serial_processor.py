@@ -14,29 +14,31 @@ class DeviceIdentifier(Enum):
 
 
 class ProxyProtocolFactory:
-    def __init__(self, dev_id, pass_through=True, data_received_callback=None):
+    def __init__(self, dev_id, pass_through=True, data_pass_through_callback=None, data_received_callback=None):
         self.logger = logging.getLogger('ProxyProtocolFactory')
         self.dev_id = dev_id
         self.pass_through = pass_through
+        self.data_pass_through_callback = data_pass_through_callback
         self.data_received_callback = data_received_callback
-        self.logger.debug(f"__init__: dev_id={self.dev_id}, pass_through={self.pass_through}, data_received_callback={self.data_received_callback}")
+        self.logger.debug(f"__init__: dev_id={self.dev_id}, pass_through={self.pass_through}, data_pass_through_callback={self.data_pass_through_callback}, data_received_callback={self.data_received_callback}")
 
     def createProxyProtocol(self):
-        self.logger.debug(f"createProxyProtocol: creating ProxyProtocol with dev_id={self.dev_id}, pass_through={self.pass_through}, data_received_callback={self.data_received_callback}")
-        return ProxyProtocol(self.dev_id, self.pass_through, self.data_received_callback)
+        self.logger.debug(f"createProxyProtocol: creating ProxyProtocol with dev_id={self.dev_id}, pass_through={self.pass_through}, data_pass_through_callback={self.data_pass_through_callback}, data_received_callback={self.data_received_callback}")
+        return ProxyProtocol(self.dev_id, self.pass_through, self.data_pass_through_callback, self.data_received_callback)
 
 
 class ProxyProtocol(serial.threaded.Protocol):
     """
     Read data and write to destination device.
     """
-    def __init__(self, dev_id="unknown", pass_through=None, data_received_callback=None):
+    def __init__(self, dev_id="unknown", pass_through=None, data_pass_through_callback=None, data_received_callback=None):
         self.logger = logging.getLogger('ProxyProtocol')
         self.dev_id = dev_id
         self.pass_through = pass_through
+        self.data_pass_through_callback = data_pass_through_callback
         self.data_received_callback = data_received_callback
         self.transport = None
-        self.logger.debug(f"__init__: dev_id={self.dev_id}, pass_through={self.pass_through}, data_received_callback={self.data_received_callback}")
+        self.logger.debug(f"__init__: dev_id={self.dev_id}, pass_through={self.pass_through}, data_pass_through_callback={self.data_pass_through_callback}, data_received_callback={self.data_received_callback}")
 
     def connection_made(self, transport):
         """
@@ -54,18 +56,17 @@ class ProxyProtocol(serial.threaded.Protocol):
         Parameters:
             data (bytes) - received bytes
         """
-        self.logger.debug(f"[{self.dev_id.name}] data_received: len={len(data)}, data={repr(data)}")
+        self.logger.debug(f"[{self.dev_id.name}] data_received: len={len(data)}, data={data}")
         # super().data_received(data)
         if self.data_received_callback:
             self.logger.debug(f"[{self.dev_id.name}] calling data received callback")
             data = self.data_received_callback(data)
-            # self.logger.debug(f"[{self.dev_id.name}] returned from data received callback; len={len(data)}, data={repr(data)}")
             self.logger.debug(f"[{self.dev_id.name}] returned from data received callback; len={len(data)}, data={data}")
 
-        if self.pass_through and self.transport:
-            # pass-through data to transport
-            self.logger.debug(f"[{self.dev_id.name}] data_received: pass-through data >>>")
-            self.transport.write(data)
+        if self.pass_through and self.data_pass_through_callback:
+            # pass-through data
+            self.logger.debug(f"[{self.dev_id.name}] data_received: calling data pass-through callback >>>")
+            self.data_pass_through_callback(self.dev_id, data)
 
     def connection_lost(self, exc):
         """
@@ -114,13 +115,13 @@ class SerialProcessor:
         """Start the reader threads."""
         self.logger.info(f"starting reader threads")
 
-        self.thread_a = serial.threaded.ReaderThread(self.ser_a, ProxyProtocolFactory(DeviceIdentifier.ALPHA, pass_through=self.conf_a['pass_through'], data_received_callback=self.conf_a['data_received_callback']).createProxyProtocol)
+        self.thread_a = serial.threaded.ReaderThread(self.ser_a, ProxyProtocolFactory(DeviceIdentifier.ALPHA, pass_through=self.conf_a['pass_through'], data_pass_through_callback=self.data_pass_through, data_received_callback=self.conf_a['data_received_callback']).createProxyProtocol)
         # Note: Start the thread’s activity. It arranges for the object’s run() method to be invoked in a separate thread of control.
         self.thread_a.start()
         self.transport_a, self.protocol_a = self.thread_a.connect()
         self.logger.debug(f"start: thread_a={self.thread_a}, transport_a={self.transport_a}, protocol_a={self.protocol_a}")
 
-        self.thread_b = serial.threaded.ReaderThread(self.ser_b, ProxyProtocolFactory(DeviceIdentifier.BETA, pass_through=self.conf_b['pass_through'], data_received_callback=self.conf_b['data_received_callback']).createProxyProtocol)
+        self.thread_b = serial.threaded.ReaderThread(self.ser_b, ProxyProtocolFactory(DeviceIdentifier.BETA, pass_through=self.conf_b['pass_through'], data_pass_through_callback=self.data_pass_through, data_received_callback=self.conf_b['data_received_callback']).createProxyProtocol)
         self.thread_b.start()
         self.transport_b, self.protocol_b = self.thread_b.connect()
         self.logger.debug(f"start: thread_b={self.thread_b}, transport_b={self.transport_b}, protocol_b={self.protocol_b}")
@@ -140,6 +141,28 @@ class SerialProcessor:
             self.thread_b.write(data)
         else:
             self.logger.error(f"write: unknown device identifier '{device_id}'")
+
+    def data_pass_through(self, device_id, data):
+        self.logger.debug(f"data_pass_through: device_id={device_id}, data={data}")
+        if device_id == DeviceIdentifier.ALPHA:
+            self.thread_b.write(data)
+        elif device_id == DeviceIdentifier.BETA:
+            self.thread_a.write(data)
+        else:
+            self.logger.error(f"data_pass_through: unknown device identifier '{device_id}'")
+            return False
+        return True
+
+    def set_pass_through(self, device_id, value):
+        self.logger.debug(f"set_pass_through: device_id={device_id}, value={value}")
+        if device_id == DeviceIdentifier.ALPHA:
+            self.protocol_a.pass_through = value
+        elif device_id == DeviceIdentifier.BETA:
+            self.protocol_b.pass_through = value
+        else:
+            self.logger.error(f"set_pass_through: unknown device identifier '{device_id}'")
+            return False
+        return True
 
 
 # Simple test client
@@ -177,9 +200,11 @@ def main(argv):
         processor = SerialProcessor(conf_a, conf_b)
         processor.start()
 
+        input("\n\nData proxy pass-through started; Press Enter to exit...\n")
+
         # prime processor with data for testing
-        processor.write(DeviceIdentifier.ALPHA, 'helloA\r\n'.encode())
-        time.sleep(2)
+        # processor.write(DeviceIdentifier.ALPHA, 'helloA\r\n'.encode())
+        # time.sleep(2)
         # processor.write(DeviceIdentifier.BETA, 'helloB\r\n'.encode())
         # time.sleep(2)
     finally:
