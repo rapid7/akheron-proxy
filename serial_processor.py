@@ -54,12 +54,11 @@ class ProxyProtocol(serial.threaded.Protocol):
         Parameters:
             data (bytes) - received bytes
         """
-        self.logger.debug(f"[{self.dev_id.name}] data_received: len={len(data)}, data={repr(data)}")
+        self.logger.debug(f"[{self.dev_id.name}] data_received: len={len(data)}, data={data}")
         # super().data_received(data)
         if self.data_received_callback:
             self.logger.debug(f"[{self.dev_id.name}] calling data received callback")
             data = self.data_received_callback(data)
-            # self.logger.debug(f"[{self.dev_id.name}] returned from data received callback; len={len(data)}, data={repr(data)}")
             self.logger.debug(f"[{self.dev_id.name}] returned from data received callback; len={len(data)}, data={data}")
 
         if self.pass_through and self.transport:
