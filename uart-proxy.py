@@ -53,19 +53,10 @@ sniffRunning = False
 # Handle signals the program receives.
 # Returns: n/a
 def signalHandler(signum, frame):
-	global sniffRunning
-
 	if signum == signal.SIGINT:
 		# CTRL-C was received
-		if sniffRunning:
-			# Just stop sniffing...
-			sniffRunning = False
-		else:
-			# Quit program...
-			global captureFile
-			if captureFile:
-				captureFile.close()
-			exit()
+		# Quit program...
+		quit_app()
 
 # Banner displayed at startup.
 # Returns: n/a
@@ -190,7 +181,7 @@ def portSetApply():
 	if len(portSettingsMissing) > 0:
 		portStr = "\" and \"".join(portSettingsMissing)
 		print("Port \"%s\" missing settings, please use the \"portset\" command to set device and baud." % (portStr))
-		return None, None
+		return False
 
 	# Apply serial port settings and open ports.
 	port = {}
@@ -199,9 +190,13 @@ def portSetApply():
 			port[p] = serial.Serial(portSettings[p]["dev"], portSettings[p]["baud"], timeout=0);
 		except serial.SerialException as e:
 			print("Could not open device \"%s\": %s" % (portSettings[p]["dev"], str(e)));
-			return None, None
+			if p == "B":
+				port["A"].close()
+			return False
 	# NOTE: close these and retrunt boolean
-	return port["A"], port["B"]
+	for p in ["A", "B"]:
+		port[p].close()
+	return True
 
 # 'replaceget' command, allows user to dump current "substitute pattern-X-for-Y" values.
 # Returns: n/a
@@ -306,6 +301,7 @@ def tee(string = "", end = "\n"):
 	global captureFileSize
 
 	if captureFile:
+		print("PBJ hereee")
 		if len(string) > 0 and string[0] == "\b":
 			# Need to erase some previously-written bytes due to a msg delimiter.
 			if captureFileSize >= len(string):
@@ -315,147 +311,54 @@ def tee(string = "", end = "\n"):
 			captureFile.seek(captureFileSize, 0)
 		else:
 			captureFile.write("%s%s" % (string, end))
+			captureFile.flush()
 			captureFileSize += len(string) + len(end)
 	# TODO add watch ability
-	# print(string, end = end, flush = True)
+	#print(string, end = end, flush = True)
 
-# Sniffing traffic between two ports.
+# Capturing traffic between two ports.
 # args:
-#   [0]: filename to write captured data to (OPTIONAL)
+#   [0]: filename to write captured data to
 # Returns: n/a
-def captureTraffic(args = ""):
+def captureTrafficStart(args = ""):
 	global replacePatterns
 	global captureFile
 	global captureFileSize
 
-	captureFile = None
-	captureFileSize = 0
-	if len(args) > 1:
+	if len(args) != 1:
 		print("Incorrect number of args, type \"help\" for usage")
 		return
-	elif len(args) == 1:
-		captureFileName = args[0]
-		try:
-			captureFile = open(captureFileName, "w")
-		except IOError as e:
-			print("File \"%s\" could not be opened: %s" % (captureFileName, str(e)))
-			return
 
-	global checkMsgBufferMax
-	checkMsgBufferMax = 0
-	global delimMatching
-	delimMatching = False
-	# Set checkMsgBufferMax to the 'longest' delimiter length.
-	for i in msgDelims["start"] + msgDelims["end"]:
-		delimMatching = True
-		if len(i) > checkMsgBufferMax:
-			checkMsgBufferMax = len(i)
-
-	# Open the ports and apply the settings...
-	port = {}
-	port["A"], port["B"] = portSetApply()
-	if not port["A"]:
-		# Something failed in our open+settings attempt, bail out...
+	if captureFile:
+		print("A capture is already running, type \"capturestop\" to stop")
 		return
 
-	print("Sniffing between ports \"%s\" <-> \"%s\"" % (portSettings["A"]["dev"], portSettings["B"]["dev"]), end = "")
-	if captureFile:
-		print(", saving captured traffic to \"%s\"" % captureFileName)
-	else:
-		print()
-	print("Press CTRL-C to stop...")
-	print()
+	captureFile = None
+	captureFileSize = 0
+	captureFileName = args[0]
+	try:
+		captureFile = open(captureFileName, "w")
+	except IOError as e:
+		print("File \"%s\" could not be opened: %s" % (captureFileName, str(e)))
+		return
 
-	# When matching on start/stop message delimters, we'll buffer the data in case
-	# there are replacements/substitutions to make...
-	if delimMatching:
-		portDataOutBuffer = {}
+	print("Saving captured traffic to \"%s\"..." % captureFileName)
 
-	lastPrinted = "None"
-	matched = {}
-	for p in ["A", "B"]:
-		matched[p] = {}
-		matched[p]["start"] = ""
-		matched[p]["end"] = ""
-		if delimMatching:
-			portDataOutBuffer[p] = []
+# Capturing traffic between two ports.
+# args:
+#   [0]: filename to write captured data to
+# Returns: n/a
+def captureTrafficStop(args = ""):
+	global captureFile
+	global captureFileSize
 
-	global sniffRunning
-	sniffRunning = True
-	while sniffRunning:
-		# Alternate reading data from each port in the connection...
-		for p in ["A", "B"]:
-			if p == "A":
-				outp = "B"
-			else:
-				outp = "A"
-			# Process incoming data from port 'p'...
-			try:
-				data = port[p].read(10)
-			except serial.serialutil.SerialException:
-				sniffRunning = False
-				continue
-			if len(data) > 0:
-				if lastPrinted != p:
-					# Last data we printed was from the other port, print our current port source.
-					if lastPrinted != "None":
-						tee()
-					tee("%c -> %c: " % (p, outp), "")
-					lastPrinted = p
-					bytesOnLine = 0
-				else:
-					if len(matched[p]["end"]) > 0:
-						# The previous byte we looked at matched an end-of-message delim, go to new line.
-						tee()
-						tee("        ", "")
-						bytesOnLine = 0
-				matched[p]["start"] = ""
-				matched[p]["end"] = ""
-				for b in data:
-					# Check if each incoming byte makes a start-of-message delim match.
-					matched[p]["start"] = checkMsg(p, "start", b)
-					if len(matched[p]["start"]) > 0:
-						portDataOutBuffer[outp].append(b)
-						# We did match a start-of-message delim. 
-						if len(matched[p]["start"]) > 1:
-							# It was a multi-byte start-of-message delim, so remove previous data bytes
-							# that we had alrady printed.
-							tee("\b" * 5 * (len(matched[p]["start"]) - 1), "")
-						if bytesOnLine >= len(matched[p]["start"]):
-							# Need to erase and go to a new line now (also indent!)
-							tee(" " * 5 * (len(matched[p]["start"]) - 1), "")
-							tee()
-							tee("        ", "")
-						tee(" ".join(format("0x%02x" % int(n, 16)) for n in matched[p]["start"]) + " ", "")
-						bytesOnLine = len(matched[p]["start"])
-						# Send the buffered message out the correct port and reset the databuffer...
-						lastDataIndex = len(portDataOutBuffer[outp]) - len(matched[p]["start"])
-						port[outp].write(portDataOutBuffer[outp][:lastDataIndex])
-						portDataOutBuffer[outp] = [int(n, 16) for n in matched[p]["start"]]
-					else:
-						# Data byte wasn't a start-of-message delim match, check if end-of-message delim...
-						matched[p]["end"] = checkMsg(p, "end")
-						tee("0x%02x " % b, "")
-						bytesOnLine += 1
-						if delimMatching:
-							portDataOutBuffer[outp].append(b)
-						if len(matched[p]["end"]) > 0:
-							# Send the buffered message out the correct port and reset the databuffer...
-							replacePatternsIfMatched(portDataOutBuffer[outp], replacePatterns[p])
-							port[outp].write(portDataOutBuffer[outp])
-							portDataOutBuffer[outp] = []
-					if not delimMatching:
-						# Send byte along to the other port now...
-						port[outp].write([b])
-
-	# Sniffing stopped, close ports and capture file, if applicable.
-	for p in ["A", "B"]:
-		port[p].close()
+	# Close ports and capture file, if applicable.
 	if captureFile:
 		captureFile.close()
 		captureFile = None
 		captureFileSize = 0
-	print("\nCapture stopped\n\n")
+		print("Capture stopped")
+
 
 # Dump capture file, along with line numbers.
 # args:
@@ -512,8 +415,8 @@ def replayTraffic(args = ""):
 		lines = list(range(1,len(replayFileContents) + 1))
 
 	# Apply serial port settings
-	portA, portB = portSetApply()
-	if not portA:
+	if not portSetApply():
+		# Port settings not valid...
 		return
 
 	# Replay user-specfied traffic
@@ -655,13 +558,11 @@ def startTraffic(args = ""):
 		if len(i) > checkMsgBufferMax:
 			checkMsgBufferMax = len(i)
 
-	# Open the ports and apply the settings...
+	# Verify the ports and port settings are valid...
 	port = {}
-        # TODO reenalbe this XXX
-	#port["A"], port["B"] = portSetApply()
-	#if not port["A"]:
+	if not portSetApply():
 		# Something failed in our open+settings attempt, bail out...
-	#	return
+		return
 
 	global portDataOutBuffer
 	if delimMatching:
@@ -718,6 +619,9 @@ def stopTraffic(args = ""):
 	return
 
 def quit_app():
+	if captureFile:
+		# Close our exisitng capture...
+		captureFile.close()
 	if processor:
 		# Cleanup serial port threads...
 		processor.stop()
@@ -793,24 +697,35 @@ Example(s): replaceset A 0x31 -> 0x32
 		'''
 		replaceSet(arg.split())
 
-	def do_capture(self, arg):
+	def do_capturestart(self, arg):
 		'''
-Description: start forwarding-and-capturing UART traffic
+Description: start capturing UART traffic
 
-Usage:	capture [output file]
+Usage:	capturestart <output capture file>
 
-Example(s): capture
-            capture sniffed.out
+Example(s): capturestart
+            capturestart sniffed.out
 		'''
-		captureTraffic(arg.split())
+		captureTrafficStart(arg.split())
 
-	def do_dump(self, arg):
+	def do_capturestop(self, arg):
+		'''
+Description: stop capturing UART traffic
+
+Usage:	capturestop
+
+Example(s): capturestop
+            capturestop sniffed.out
+		'''
+		captureTrafficStop(arg.split())
+
+	def do_capturedump(self, arg):
 		'''
 Description: dump capture file contents
 
-Usage: dump <capture file>
+Usage: capturedump <capture file>
 
-Example(s): dump sniffed.out
+Example(s): capturedump sniffed.out
 		'''
 		dumpCapture(arg.split())
 
