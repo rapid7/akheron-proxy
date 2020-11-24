@@ -578,7 +578,8 @@ def dataReceivedCallback(data, p):
 		outp = "A"
 		outDevID = serial_processor.DeviceIdentifier.ALPHA
 	if len(data) > 0:
-		print("PJB: current out buffer = %s" % str(portDataOutBuffer[outp]))
+		if delimMatching:
+			print("PJB: current out buffer = %s" % str(portDataOutBuffer[outp]))
 		if lastPrinted != p:
 			# Last data we printed was from the other port, print our current port source.
 			if lastPrinted != "None":
