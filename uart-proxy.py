@@ -13,6 +13,7 @@ try:
 	from serial.tools.list_ports import comports
 	import signal
 	import cmd
+	import serial_processor
 except ImportError as e:
 	print("Error on module import: %s" % (str(e)))
 	exit()
@@ -29,6 +30,7 @@ portSettings["B"] = {"dev": "", "baud": 0}
 msgDelims = {}
 msgDelims["start"] = []
 msgDelims["end"] = []
+delimMatching = False
 
 # Pattern replacement/substitution, as provided via the 'replaceset' command.
 replacePatterns = {}
@@ -198,6 +200,7 @@ def portSetApply():
 		except serial.SerialException as e:
 			print("Could not open device \"%s\": %s" % (portSettings[p]["dev"], str(e)));
 			return None, None
+	# NOTE: close these and retrunt boolean
 	return port["A"], port["B"]
 
 # 'replaceget' command, allows user to dump current "substitute pattern-X-for-Y" values.
@@ -313,7 +316,8 @@ def tee(string = "", end = "\n"):
 		else:
 			captureFile.write("%s%s" % (string, end))
 			captureFileSize += len(string) + len(end)
-	print(string, end = end, flush = True)
+	# TODO add watch ability
+	# print(string, end = end, flush = True)
 
 # Sniffing traffic between two ports.
 # args:
@@ -339,6 +343,7 @@ def captureTraffic(args = ""):
 
 	global checkMsgBufferMax
 	checkMsgBufferMax = 0
+	global delimMatching
 	delimMatching = False
 	# Set checkMsgBufferMax to the 'longest' delimiter length.
 	for i in msgDelims["start"] + msgDelims["end"]:
@@ -531,6 +536,192 @@ def replayTraffic(args = ""):
 					portA.write(lineData)
 		lineNum += 1
 
+
+emptyResponse = bytes(1)
+def dataReceivedCallbackA(data):
+	print("PJB: callbackA, data = %s, type %s" % (str(data), str(type(data))))
+	dataReceivedCallback(data, "A")
+	return data
+	#return dataReceivedCallback(data, "A")
+
+	#return dataReceivedCallback(list(data), "A")
+
+	#return emptyResponse
+
+def dataReceivedCallbackB(data):
+	print("PJB: callbackB, data = %s, type %s" % (str(data), str(type(data))))
+	dataReceivedCallback(list(data), "B")
+	return data
+
+	#return dataReceivedCallback(list(data), "B")
+
+	#return emptyResponse
+
+lastPrinted = "None"
+portDataOutBuffer = {}
+delimMatched = {}
+portDataOutBuffer = {}
+bytesOnLine = 0
+def dataReceivedCallback(data, p):
+	# When matching on start/stop message delimters, we'll buffer the data in case
+	# there are replacements/substitutions to make...
+	global delimMatched
+	global lastPrinted
+	global portDataOutBuffer
+	global bytesOnLine
+
+	# Alternate reading data from each port in the connection...
+	if p == "A":
+		outp = "B"
+		outDevID = serial_processor.DeviceIdentifier.BETA
+	else:
+		outp = "A"
+		outDevID = serial_processor.DeviceIdentifier.ALPHA
+	if len(data) > 0:
+		print("PJB: current out buffer = %s" % str(portDataOutBuffer[outp]))
+		if lastPrinted != p:
+			# Last data we printed was from the other port, print our current port source.
+			if lastPrinted != "None":
+				tee()
+			tee("%c -> %c: " % (p, outp), "")
+			lastPrinted = p
+			bytesOnLine = 0
+		else:
+			if len(delimMatched[p]["end"]) > 0:
+				# The previous byte we looked at matched an end-of-message delim, go to new line.
+				tee()
+				tee("        ", "")
+				bytesOnLine = 0
+		delimMatched[p]["start"] = ""
+		delimMatched[p]["end"] = ""
+		for b in data:
+			# Check if each incoming byte makes a start-of-message delim match.
+			delimMatched[p]["start"] = checkMsg(p, "start", b)
+			if len(delimMatched[p]["start"]) > 0:
+				portDataOutBuffer[outp].append(b)
+				# We did match a start-of-message delim. 
+				if len(delimMatched[p]["start"]) > 1:
+					# It was a multi-byte start-of-message delim, so remove previous data bytes
+					# that we had alrady printed.
+					tee("\b" * 5 * (len(delimMatched[p]["start"]) - 1), "")
+				if bytesOnLine >= len(delimMatched[p]["start"]):
+					# Need to erase and go to a new line now (also indent!)
+					tee(" " * 5 * (len(delimMatched[p]["start"]) - 1), "")
+					tee()
+					tee("        ", "")
+				tee(" ".join(format("0x%02x" % int(n, 16)) for n in delimMatched[p]["start"]) + " ", "")
+				bytesOnLine = len(delimMatched[p]["start"])
+				# Send the buffered message out the correct port and reset the databuffer...
+				lastDataIndex = len(portDataOutBuffer[outp]) - len(delimMatched[p]["start"])
+				#port[outp].write(portDataOutBuffer[outp][:lastDataIndex])
+				processor.write(outDevID, bytes(portDataOutBuffer[outp][:lastDataIndex]))
+				portDataOutBuffer[outp] = [int(n, 16) for n in delimMatched[p]["start"]]
+			else:
+				# Data byte wasn't a start-of-message delim match, check if end-of-message delim...
+				delimMatched[p]["end"] = checkMsg(p, "end")
+				tee("0x%02x " % b, "")
+				bytesOnLine += 1
+				if delimMatching:
+					portDataOutBuffer[outp].append(b)
+				if len(delimMatched[p]["end"]) > 0:
+					# Send the buffered message out the correct port and reset the databuffer...
+					replacePatternsIfMatched(portDataOutBuffer[outp], replacePatterns[p])
+					#port[outp].write(portDataOutBuffer[outp])
+					processor.write(outDevID, bytes(portDataOutBuffer[outp]))
+					portDataOutBuffer[outp] = []
+			if not delimMatching:
+				# Send byte along to the other port now...
+				#port[outp].write([b])
+				#return (b).to_bytes(1, byteorder='big')
+				processor.write(outDevID, (b).to_bytes(1, byteorder='big'))
+
+
+processor = None
+
+# Start traffic between two ports.
+# args: none
+# Returns: n/a
+def startTraffic(args = ""):
+	global checkMsgBufferMax
+	checkMsgBufferMax = 0
+	global delimMatching
+	delimMatching = False
+
+	# Set checkMsgBufferMax to the 'longest' delimiter length.
+	for i in msgDelims["start"] + msgDelims["end"]:
+		print("PJB: delims matching")
+		delimMatching = True
+		if len(i) > checkMsgBufferMax:
+			checkMsgBufferMax = len(i)
+
+	# Open the ports and apply the settings...
+	port = {}
+        # TODO reenalbe this XXX
+	#port["A"], port["B"] = portSetApply()
+	#if not port["A"]:
+		# Something failed in our open+settings attempt, bail out...
+	#	return
+
+	global portDataOutBuffer
+	if delimMatching:
+		portDataOutBuffer = {}
+
+	global delimMatched
+	delimMatched = {}
+	for p in ["A", "B"]:
+		delimMatched[p] = {}
+		delimMatched[p]["start"] = ""
+		delimMatched[p]["end"] = ""
+		if delimMatching:
+			portDataOutBuffer[p] = []
+
+	conf_a = {
+		'device': portSettings["A"]["dev"],
+		'baudrate': portSettings["A"]["baud"],
+		'parity': serial.PARITY_NONE,
+		'stopbits': serial.STOPBITS_ONE,
+		'bytesize': serial.EIGHTBITS,
+		'timeout': 1,
+		'pass_through': False,
+		'data_received_callback': dataReceivedCallbackA
+	}
+	conf_b = {
+		'device': portSettings["B"]["dev"],
+		'baudrate': portSettings["B"]["baud"],
+		'parity': serial.PARITY_NONE,
+		'stopbits': serial.STOPBITS_ONE,
+		'bytesize': serial.EIGHTBITS,
+		'timeout': 1,
+		'pass_through': False,
+		'data_received_callback': dataReceivedCallbackB
+	}
+
+	global processor
+	processor = serial_processor.SerialProcessor(conf_a, conf_b)
+	processor.start()
+
+	global sniffRunning
+	sniffRunning = True
+	print("Data now PASSING between ports \"%s\" <-> \"%s\"..." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
+	return
+
+# Start traffic between two ports.
+# args: none
+# Returns: n/a
+def stopTraffic(args = ""):
+	global sniffRunning
+	sniffRunning = False
+
+	processor.stop()
+	print("Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
+	return
+
+def quit_app():
+	if processor:
+		# Cleanup serial port threads...
+		processor.stop()
+	quit()
+
 # Implementation of our REPL functionality.
 class repl(cmd.Cmd):
 	prompt = "> "
@@ -634,14 +825,34 @@ Example(s): replay sniffed.out
 		'''
 		replayTraffic(arg.split())
 
+	def do_start(self, arg):
+		'''
+Description: start forwarding UART traffic
+
+Usage:	start
+
+Example(s): start
+		'''
+		startTraffic(arg.split())
+
+	def do_stop(self, arg):
+		'''
+Description: stop forwarding UART traffic
+
+Usage:	stop
+
+Example(s): stop
+		'''
+		stopTraffic(arg.split())
+
 	def do_version(self, arg):
 		print("v%s" % (version))
 
 	def do_exit(self, arg):
-		quit()
+		quit_app()
 
 	def do_quit(self, arg):
-		quit()
+		quit_app()
 
 	def emptyline(self):
 		pass
