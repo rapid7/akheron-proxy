@@ -47,6 +47,7 @@ checkMsgBufferMax = 0
 captureFile = None
 captureFileSize = 0
 sniffRunning = False
+watching = False
 
 ### Methods ###
 
@@ -54,9 +55,15 @@ sniffRunning = False
 # Returns: n/a
 def signalHandler(signum, frame):
 	if signum == signal.SIGINT:
-		# CTRL-C was received
-		# Quit program...
-		quit_app()
+		global watching
+		if watching:
+			# stop watching
+			watching = False
+			print("\nWatch command stopped.")
+		else:
+			# CTRL-C was received
+			# Quit program...
+			quit_app()
 
 # Banner displayed at startup.
 # Returns: n/a
@@ -313,8 +320,9 @@ def tee(string = "", end = "\n"):
 			captureFile.write("%s%s" % (string, end))
 			captureFile.flush()
 			captureFileSize += len(string) + len(end)
-	# TODO add watch ability
-	#print(string, end = end, flush = True)
+
+	if watching:
+		print(string, end = end, flush = True)
 
 # Capturing traffic between two ports.
 # args:
@@ -618,6 +626,15 @@ def stopTraffic(args = ""):
 	print("Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
 	return
 
+def watch(args = ""):
+	if not sniffRunning:
+		print("Data is not currently being passed between ports; run 'start' command first.")
+		return
+
+	global watching
+	print("Watching data passed between ports. Press CTRL-C to stop...")
+	watching = True
+
 def quit_app():
 	if captureFile:
 		# Close our exisitng capture...
@@ -760,6 +777,14 @@ Usage:	stop
 Example(s): stop
 		'''
 		stopTraffic(arg.split())
+
+	def do_watch(self, arg):
+		'''
+Description: watch UART traffic
+
+Usage:	watch
+		'''
+		watch(arg.split())
 
 	def do_version(self, arg):
 		print("v%s" % (version))
