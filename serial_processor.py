@@ -200,9 +200,11 @@ def main(argv):
         processor = SerialProcessor(conf_a, conf_b)
         processor.start()
 
+        input("\n\nData proxy pass-through started; Press Enter to exit...\n")
+
         # prime processor with data for testing
-        processor.write(DeviceIdentifier.ALPHA, 'helloA\r\n'.encode())
-        time.sleep(2)
+        # processor.write(DeviceIdentifier.ALPHA, 'helloA\r\n'.encode())
+        # time.sleep(2)
         # processor.write(DeviceIdentifier.BETA, 'helloB\r\n'.encode())
         # time.sleep(2)
     finally:
