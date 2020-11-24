@@ -14,6 +14,7 @@ try:
 	import signal
 	import cmd
 	import serial_processor
+	import threading
 except ImportError as e:
 	print("Error on module import: %s" % (str(e)))
 	exit()
@@ -48,6 +49,7 @@ captureFile = None
 captureFileSize = 0
 sniffRunning = False
 watching = False
+teeLock = threading.Lock()
 
 ### Methods ###
 
@@ -305,24 +307,25 @@ def checkMsg(port, startOrEnd, byte = None):
 # end: trailing character for 'string'
 # Returns: n/a
 def tee(string = "", end = "\n"):
-	global captureFileSize
+	with teeLock:
+		global captureFileSize
 
-	if captureFile:
-		print("PBJ hereee")
-		if len(string) > 0 and string[0] == "\b":
-			# Need to erase some previously-written bytes due to a msg delimiter.
-			if captureFileSize >= len(string):
-				captureFileSize -= len(string)
+		if captureFile:
+			print("PBJ hereee")
+			if len(string) > 0 and string[0] == "\b":
+				# Need to erase some previously-written bytes due to a msg delimiter.
+				if captureFileSize >= len(string):
+					captureFileSize -= len(string)
+				else:
+					captureFileSize = 0
+				captureFile.seek(captureFileSize, 0)
 			else:
-				captureFileSize = 0
-			captureFile.seek(captureFileSize, 0)
-		else:
-			captureFile.write("%s%s" % (string, end))
-			captureFile.flush()
-			captureFileSize += len(string) + len(end)
+				captureFile.write("%s%s" % (string, end))
+				captureFile.flush()
+				captureFileSize += len(string) + len(end)
 
-	if watching:
-		print(string, end = end, flush = True)
+		if watching:
+			print(string, end = end, flush = True)
 
 # Capturing traffic between two ports.
 # args:
