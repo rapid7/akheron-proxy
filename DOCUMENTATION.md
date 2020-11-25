@@ -22,7 +22,7 @@ Version 0.1 of the `uart-proxy` tool is first iteration on this effort, born of 
 
 ### Requirements
 
-The `uart-proxy` requires Python 3.6 or later, and uses the [`pyserial`](https://pyserial.readthedocs.io/en/latest/pyserial.html) library for interfacing with the system's serial ports. It was tested on both macOS 10.15 and Ubuntu 18.04.
+The `uart-proxy` tool requires Python 3.6 or later, and uses the [`pyserial`](https://pyserial.readthedocs.io/en/latest/pyserial.html) library for interfacing with the system's serial ports. It was tested on both macOS 10.15 and Ubuntu 18.04.
 
 #### Install Requirements
 ```
@@ -35,11 +35,7 @@ You can start the `uart-proxy` from a terminal window in the top-level directory
 
 `./uart-proxy.py`
 
-To avoid running `uart-proxy` with elevated privileges to access your serial port devices ensure that your user account belongs to the same group as the device you wish to use. On Linux the serial device is likely a member of the `dialout` group. Adding your user account to the group should allow you to access the device. In order for you to see the changes you may need to logout and log back in to your account, or reboot the system.
-
-```
-sudo usermod -a -G dialout $USER
-```
+On many systems, access to serial devices is restricted. To avoid running `uart-proxy` with elevated privileges, ensure that your user account belongs to the same group as the device you wish to use. On Linux, the serial device is likely a member of the `dialout` group. Adding your user account to that group (e.g. `sudo usermod -a -G dialout $USER`) should allow you to access the device. In order for you to see the changes, you may need to logout and log back in to your account, or possibly reboot the system.
 
 Once running, you'll see a banner and a `> ` prompt:
 
@@ -122,6 +118,31 @@ Watch mode exited.
 > stop
 Data now BLOCKED between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2".
 > 
+```
+
+#### With start-of-message delimiter
+
+This is the same flow, but with a start-of-message delimiter of `0x37` set:
+
+```
+> portset A /dev/ttyUSB1 115200
+> portset B /dev/ttyUSB2 115200
+> delimset start 0x37
+> start
+Data now PASSING between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2"...
+> watch
+Watching data passed between ports. Press CTRL-C to stop...
+A -> B: 0x37 0x71 0x77 0x65 0x65 0x72 
+        0x37 0x64 0x66 0x61 0x64 
+        0x37 0x73 
+        0x37 0x68 0x68 
+B -> A: 0x37 0x6e 0x6d 0x62 
+        0x37 0x69 0x69 
+A -> B: 0x37 0x61 0x73 0x64 ^C
+Watch mode exited.
+> stop
+Data now BLOCKED between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2".
+>
 ```
 
 ### Forward and capture (and watch) traffic
