@@ -644,8 +644,9 @@ def stopTraffic(args = ""):
 	global trafficPassing
 	trafficPassing = False
 
-	processor.stop()
-	print("Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
+	if processor:
+		processor.stop()
+		print("Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
 	return
 
 def watchWaitExit():
