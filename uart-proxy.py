@@ -491,6 +491,11 @@ def replayTraffic(args = ""):
 	if len(args) == 0 or len(args) > 2:
 		print("Incorrect number of args, type \"help\" for usage")
 		return
+
+	if not trafficPassing:
+		print("Cannot replay traffic while traffic is blocked, please \"start\" first")
+		return
+
 	replayFileName = args[0]
 	try:
 		replayFile = open(replayFileName, "r")
@@ -558,7 +563,8 @@ def replayTraffic(args = ""):
 				processor.write(outDevID, bytes(lineData))
 				tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in lineData) + " "), "")
 			lineNum += 1
-		tee()
+		global lastPrinted
+		lastPrinted = p
 	watchWaitExit()
 
 def dataReceivedCallbackA(data):
