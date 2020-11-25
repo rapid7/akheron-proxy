@@ -35,12 +35,16 @@ You can start the `uart-proxy` from a terminal window in the top-level directory
 
 `./uart_proxy.py`
 
-NOTE: you may need `root` level permissions to access your serial port devices, in which case `sudo ./uart-proxy.py` will take care of that.
+To avoid running `uart-proxy` with elevated privileges to access your serial port devices ensure that your user account belongs to the same group as the device you wish to use. On Linux the serial device is likely a member of the `dialout` group. Adding your user account to the group should allow you to access the device. In order for you to see the changes you may need to logout and log back in to your account, or reboot the system.
+
+```
+sudo usermod -a -G dialout $USER
+```
 
 Once running, you'll see a banner and a `> ` prompt:
 
 ```
-$ sudo ./uart-proxy.py 
+$ ./uart-proxy.py
 
 ##########################
 Welcome to the UART Proxy!
