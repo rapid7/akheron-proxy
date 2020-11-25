@@ -24,6 +24,11 @@ Version 0.1 of the `uart-proxy` tool is first iteration on this effort, born of 
 
 The `uart-proxy` tool was tested under both macOS and Ubuntu 18.04, requiring Python 3.6 or later.  It uses `pyserial` for interfacing with system serial ports, you can read [here](https://pyserial.readthedocs.io/en/latest/pyserial.html) on how to install it on your system.
 
+#### Install Requirements
+```
+pip install -r requirements.txt
+```
+
 ### Starting the tool
 
 You can start the `uart-proxy` from a terminal window in the top-level directory of the repo:
