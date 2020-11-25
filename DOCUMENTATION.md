@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `uart-proxy` tool is designed to help lend visibility to UART inter-chip communications and aid in understanding/reversing those comms and device functionality.  It does this by supporting several modes of operation:
+The `uart-proxy` tool is written in python and designed to help lend visibility to UART inter-chip communications and aid in understanding/reversing/manipulating those comms to discern device functionality (both intended and unintended).  It does this by supporting several modes of operation:
 
 * forwarding/bridging traffic
   * passes/proxies traffic through from one device to the other (and vice-versa) while providing visibility of that data to the user
@@ -14,9 +14,65 @@ The `uart-proxy` tool is designed to help lend visibility to UART inter-chip com
   * loads captured data from a file, replacing user-provided pattern matches with user-provided replacement values, and replays it on the UART connection
   * also supports checksum recalculation+update on messages that have been altered
 
-`TODO`: add note about physically accessing the comms on a device and wiring them to your system serial ports
+## Physical setup
 
-## Use
+Inter-chip comms via UART is still a common design choice found in many devices, and it looks something like this:
+
+```
++----------+                           +----------+
+|        TX+-------------------------->+RX        |
+| CHIP A   |                           |   CHIP B |
+|        RX+<--------------------------+TX        |
++----------+                           +----------+
+
+```
+
+In this example, chip A talks to chip B by sending data out chip A's transmit (TX) pin, where chip B reads that incoming data on its receive (RX) pin.  And chip B can send data out its transmit (TX) pin to be received by chip A on chip A's receive (RX) pin.
+
+But what exactly are they sending back and forth between each other...???
+
+If we make ourselves a physical machine-in-the-middle, we can find out!
+
+The `uart-proxy` tool is designed to be run on a system with two serial ports (USB-to-serial adapters are fine, so long as the OS of the system supports them), acting as a proxy for sending traffic between those two ports.  Something like this:
+
+```
+    ^   +             ^   +
+    |   v             |   v
++-----------------------------+
+| |TX1 RX1|         |TX2 RX2| |
+| +-------+         +-------+ |
+|  UART  1           UART  2  |
+|                             |
+|    Machine-in-the-Middle    |
+|    (running uart-proxy)     |
+|                             |
++-----------------------------+
+```
+
+If we physcially (and carefully!) break/cut the comm connections/wires between chip A and chip B and then route them to our Machine-in-the-Middle's serial ports, we'll be able to see what those chips are sending each other over their UART comms with `uart-proxy`:
+
+```
++----------+                           +----------+
+|        TX+------+             +----->+RX        |
+| CHIP A   |      |             |      |   CHIP B |
+|        RX+<-+   |             |   +--+TX        |
++----------+  |   |             |   |  +----------+
+              |   |             |   |
+              |   v             |   v
+          +-----------------------------+
+          | |TX1 RX1|         |TX2 RX2| |
+          | +-------+         +-------+ |
+          |  UART  1           UART  2  |
+          |                             |
+          |    Machine-in-the-Middle    |
+          |    (running uart-proxy)     |
+          |                             |
+          +-----------------------------+
+```
+
+With a setup as such, `uart-proxy` is ready for use!
+
+## Tool use
 
 Version 0.1 of the `uart-proxy` tool is first iteration on this effort, born of proof-of-concept code (blame @pbarry-r7 for the awful code in there).  It is a command-line tool, using a standard REPL for interaction.
 
@@ -177,7 +233,7 @@ Data now BLOCKED between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2".
 
 ### Forward and replay traffic, then replay-with-pattern-replace, then replay-with-pattern-replace-and-recalculate-checksum
 
-The following steps show forwarding traffic between ports with replay of data (a one-line capture dump file) in this sequence:
+The following steps show forwarding traffic between ports with replay of data (in this example, a capture file that contains a single line) in this sequence:
 
 1. replay captured data exactly as it was originally captured (i.e. no modification)
 1. set a replace operation to swap `0x64 0x61` sequences with `0x99 0x91` and replay (note the substituted data in the output)
@@ -215,3 +271,4 @@ Data now BLOCKED between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2".
 >
 ```
 
+:
