@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 You can start the `uart-proxy` from a terminal window in the top-level directory of the repo:
 
-`./uart_proxy.py`
+`./uart-proxy.py`
 
 To avoid running `uart-proxy` with elevated privileges to access your serial port devices ensure that your user account belongs to the same group as the device you wish to use. On Linux the serial device is likely a member of the `dialout` group. Adding your user account to the group should allow you to access the device. In order for you to see the changes you may need to logout and log back in to your account, or reboot the system.
 
