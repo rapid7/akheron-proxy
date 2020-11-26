@@ -839,16 +839,26 @@ checksum will be placed at the end of the message.
 
 Usage:	checksumset <A|B> <checksum number or name>
 
-Available Checksums:
-  1: Checksum8Xor
-  2: Checksum8Modulo256
-  3: Checksum8Modulo256Plus1
-  4: Checksum82sComplement
-
 Example(s): checksumset A 1
             checksumset B Checksum8Modulo256
 		'''
 		checksumSet(arg.split())
+
+	def help_checksumset(self):
+		arg = "checksumset"
+		try:
+			doc=getattr(self, "do_" + arg).__doc__
+			if doc:
+				self.stdout.write("%s\n"%str(doc))
+				self.stdout.write("Available Checksums:\n")
+				for checksum in SupportedChecksums:
+					self.stdout.write(f"  {checksum.value}: {checksum.name}\n")
+				self.stdout.write("\n")
+				return
+		except AttributeError:
+			pass
+		self.stdout.write("%s\n"%str(self.nohelp % (arg,)))
+		return
 
 	def do_capturestart(self, arg):
 		'''
