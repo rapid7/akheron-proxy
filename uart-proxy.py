@@ -738,12 +738,12 @@ def watch(args = ""):
 	watching = True
 
 def shutdown():
-	if captureFile:
-		# Close our exisitng capture...
-		captureFile.close()
 	if processor:
 		# Cleanup serial port threads...
 		processor.stop()
+	if captureFile:
+		# Close our exisitng capture...
+		captureFile.close()
 
 
 # Implementation of our REPL functionality.
