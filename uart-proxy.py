@@ -19,6 +19,11 @@ try:
 	from enum import Enum, auto
 	import functools
 	import operator
+	import os.path
+	try:
+		import readline
+	except ImportError:
+		readline = None
 except ImportError as e:
 	print("Error on module import: %s" % (str(e)))
 	exit()
@@ -33,6 +38,8 @@ class SupportedChecksums(Enum):
 
 ### Globals ###
 version = "0.1"
+histfile = os.path.join(os.path.expanduser("~"), ".uart-proxy_history")
+histsize = 1000
 
 # Port settings, as provided via the 'portset' command.
 portSettings = {}
@@ -75,20 +82,6 @@ writerLock["B"] = threading.Lock()
 teeLock = threading.Lock()
 
 ### Methods ###
-
-# Handle signals the program receives.
-# Returns: n/a
-def signalHandler(signum, frame):
-	if signum == signal.SIGINT:
-		global watching
-		if watching:
-			# stop watching
-			watching = False
-			print("\nWatch mode exited.")
-		else:
-			# CTRL-C was received
-			# Quit program...
-			quit_app()
 
 # Banner displayed at startup.
 # Returns: n/a
@@ -744,19 +737,54 @@ def watch(args = ""):
 	print("Watching data passed between ports. Press CTRL-C to stop...")
 	watching = True
 
-def quit_app():
+def shutdown():
 	if captureFile:
 		# Close our exisitng capture...
 		captureFile.close()
 	if processor:
 		# Cleanup serial port threads...
 		processor.stop()
-	quit()
+
 
 # Implementation of our REPL functionality.
 class repl(cmd.Cmd):
 	prompt = "> "
 	use_rawinput = True
+
+	def cmdloop_until_keyboard_interrupt(self):
+		try:
+			super().cmdloop()
+		except KeyboardInterrupt:
+			shutdown()
+			self.__write_history()
+
+	def onecmd(self, line):
+		try:
+			return super().onecmd(line)
+		except KeyboardInterrupt:
+			global watching
+			if watching:
+				# stop watching
+				watching = False
+				self.stdout.write("\nWatch mode exited.\n")
+				# don't stop interpretation of commands by the interpreter
+				return False
+			else:
+				shutdown()
+				# stop interpretation of commands by the interpreter
+				return True
+
+	def preloop(self):
+		if readline and os.path.exists(histfile):
+			readline.read_history_file(histfile)
+
+	def postloop(self):
+		self.__write_history()
+
+	def __write_history(self):
+		if readline:
+			readline.set_history_length(histsize)
+			readline.write_history_file(histfile)
 
 	def do_list(self, arg):
 		'''
@@ -937,10 +965,12 @@ Usage:	watch
 		print("v%s" % (version))
 
 	def do_exit(self, arg):
-		quit_app()
+		shutdown()
+		return True
 
 	def do_quit(self, arg):
-		quit_app()
+		shutdown()
+		return True
 
 	def emptyline(self):
 		pass
@@ -984,11 +1014,8 @@ def main():
 	if not cmdlineArgs.quiet:
 		welcomeBanner()
 
-	# Setup signal hanlding we need to do.
-	signal.signal(signal.SIGINT, signalHandler)
-
 	# "interactive prompt" (a.k.a. REPL).
-	repl().cmdloop()
+	repl().cmdloop_until_keyboard_interrupt()
 
 if __name__ == "__main__":
 	main()
