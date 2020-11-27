@@ -19,11 +19,11 @@ The `uart-proxy` tool is written in python and designed to help lend visibility 
 Inter-chip comms via UART is still a common design choice found in many devices, and it looks something like this:
 
 ```
-+----------+                           +----------+
-|        TX+-------------------------->+RX        |
-| CHIP A   |                           |   CHIP B |
-|        RX+<--------------------------+TX        |
-+----------+                           +----------+
++------------+                           +------------+
+|        TXD +-------------------------->+ RXD        |
+| CHIP A     |                           |     CHIP B |
+|        RXD +<--------------------------+ TXD        |
++------------+                           +------------+
 
 ```
 
@@ -36,38 +36,38 @@ If we make ourselves a physical machine-in-the-middle, we can find out!
 The `uart-proxy` tool is designed to be run on a system with two serial ports (USB-to-serial adapters are fine, so long as the OS of the system supports them), acting as a proxy for sending traffic between those two ports.  Something like this:
 
 ```
-    ^   +             ^   +
-    |   v             |   v
-+-----------------------------+
-| |TX1 RX1|         |TX2 RX2| |
-| +-------+         +-------+ |
-|  UART  1           UART  2  |
-|                             |
-|    Machine-in-the-Middle    |
-|    (running uart-proxy)     |
-|                             |
-+-----------------------------+
+    ^     +             ^     +
+    |     v             |     v
++---------------------------------+
+| |TXD1 RXD1|         |TXD2 RXD2| |
+| +---------+         +---------+ |
+|   UART  1             UART  2   |
+|                                 |
+|    Machine-in-the-Middle        |
+|    (running uart-proxy)         |
+|                                 |
++---------------------------------+
 ```
 
 If we physcially (and carefully!) break/cut the comm connections/wires between chip A and chip B and then route them to our Machine-in-the-Middle's serial ports, we'll be able to see what those chips are sending each other over their UART comms with `uart-proxy`:
 
 ```
-+----------+                           +----------+
-|        TX+------+             +----->+RX        |
-| CHIP A   |      |             |      |   CHIP B |
-|        RX+<-+   |             |   +--+TX        |
-+----------+  |   |             |   |  +----------+
-              |   |             |   |
-              |   v             |   v
-          +-----------------------------+
-          | |TX1 RX1|         |TX2 RX2| |
-          | +-------+         +-------+ |
-          |  UART  1           UART  2  |
-          |                             |
-          |    Machine-in-the-Middle    |
-          |    (running uart-proxy)     |
-          |                             |
-          +-----------------------------+
++------------+                               +------------+
+|        TXD +--------+             +------->+ RXD        |
+| CHIP A     |        |             |        |     CHIP B |
+|        RXD +<-+     |             |     +--+ TXD        |
++------------+  |     |             |     |  +------------+
+                |     |             |     |
+                |     v             |     v
+            +---------------------------------+
+            | |TXD1 RXD1|         |TXD2 RXD2| |
+            | +---------+         +---------+ |
+            |   UART  1             UART  2   |
+            |                                 |
+            |    Machine-in-the-Middle        |
+            |    (running uart-proxy)         |
+            |                                 |
+            +---------------------------------+
 ```
 
 With a setup as such, `uart-proxy` is ready for use!
