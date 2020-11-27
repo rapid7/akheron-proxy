@@ -524,8 +524,9 @@ def replayTraffic(args = ""):
 	for line in replayFileContents:
 		if line.find("A -> B") == 0 or line.find("B -> A") == 0:
 			direction = line[0:line.find(":")]
-		if lineNum in lines:
+		if lineNum in lines and direction != "unknown":
 			break;
+		lineNum += 1
 	if direction == "unknown":
 		print("Could not detect the direction to send replay data, make sure your capture file and line selection are valid")
 		return
@@ -544,6 +545,8 @@ def replayTraffic(args = ""):
 		print("Replaying data from %s, press CTRL-C to exit watch mode..." % direction, end="")
 		global watching
 		watching = True
+		currDirection = "unknown"
+		lineNum = 1
 		for line in replayFileContents:
 			startIndex = 0
 			if line.find("A -> B") == 0 or line.find("B -> A") == 0:
