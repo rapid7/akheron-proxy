@@ -37,7 +37,7 @@ class SupportedChecksums(Enum):
     Checksum82sComplement = auto()
 
 
-### Globals ###
+# Globals #####
 version = "0.1"
 histfile = os.path.join(os.path.expanduser("~"), ".uart-proxy_history")
 histsize = 1000
@@ -93,7 +93,7 @@ writerLock = {
 }
 teeLock = threading.Lock()
 
-### Methods ###
+# Methods #####
 
 # Banner displayed at startup.
 # Returns: n/a
