@@ -829,80 +829,80 @@ class repl(cmd.Cmd):
             readline.write_history_file(histfile)
 
     def do_list(self, arg):
-        '''
+        """
 Description: list all serial ports available to use
 
 Usage: list [-v]
-        '''
+        """
         listSerialPorts(arg.split())
 
     def do_portget(self, arg):
-        '''
+        """
 Description: dump current UART port settings
 
 Usage: portget
-        '''
+        """
         portGet(arg.split())
 
     def do_portset(self, arg):
-        '''
+        """
 Description: apply UART port settings
 
 Usage: portset <A|B> <device> <baud>
 
 Example(s): portset A /dev/ttyUSB0 115200
             portset B /dev/ttyUSB1 115200
-        '''
+        """
         portSet(arg.split())
 
     def do_delimget(self, arg):
-        '''
+        """
 Description: dump current message start/end delimiter settings
 
 Usage: delimget
-        '''
+        """
         delimGet(arg.split())
 
     def do_delimset(self, arg):
-        '''
+        """
 Description: apply message parsing settings
 
 Usage:	delimset <start|end> <hex byte pattern>[,<hex byte pattern>,...]
 
 Example(s): delimset start 0x01 0x00, 0x01 0x04, 0x07
             delimset end 0x99
-        '''
+        """
         delimSet(arg.split())
 
     def do_replaceget(self, arg):
-        '''
+        """
 Description: dump current message pattern replace/substitute settings
 
 Usage: replaceget
-        '''
+        """
         replaceGet(arg.split())
 
     def do_replaceset(self, arg):
-        '''
+        """
 Description: apply message pattern replace/substitute settings
 
 Usage:	replaceset <A|B> <hex byte pattern to match on> -> <hex byte pattern to replace with>[,<hex byte pattern to match on>,...]
 
 Example(s): replaceset A 0x31 -> 0x32
             replaceset A 0x31 0x32 0x33 -> 0x21 0x22 0x23, 0x45 0x46 -> 0x55
-        '''
+        """
         replaceSet(arg.split())
 
     def do_checksumget(self, arg):
-        '''
+        """
 Description: output the current checksum recalculation used after message pattern replacement
 
 Usage: checksumget
-        '''
+        """
         checksumGet(arg.split())
 
     def do_checksumset(self, arg):
-        '''
+        """
 Description: set checksum recalculation used after message pattern replacement.
 Note: This should be used with start delim patterns since the computed
 checksum will be placed at the end of the message.
@@ -911,7 +911,7 @@ Usage:	checksumset <A|B> <checksum number or name>
 
 Example(s): checksumset A 1
             checksumset B Checksum8Modulo256
-        '''
+        """
         checksumSet(arg.split())
 
     def help_checksumset(self):
@@ -931,39 +931,39 @@ Example(s): checksumset A 1
         return
 
     def do_capturestart(self, arg):
-        '''
+        """
 Description: start capturing UART traffic
 
 Usage:	capturestart <output capture file>
 
 Example(s): capturestart
             capturestart sniffed.out
-        '''
+        """
         captureTrafficStart(arg.split())
 
     def do_capturestop(self, arg):
-        '''
+        """
 Description: stop capturing UART traffic
 
 Usage:	capturestop
 
 Example(s): capturestop
             capturestop sniffed.out
-        '''
+        """
         captureTrafficStop(arg.split())
 
     def do_capturedump(self, arg):
-        '''
+        """
 Description: dump capture file contents
 
 Usage: capturedump <capture file>
 
 Example(s): capturedump sniffed.out
-        '''
+        """
         dumpCapture(arg.split())
 
     def do_replay(self, arg):
-        '''
+        """
 Description: start replaying-and-forwarding UART traffic
 
 Usage: replay <capture file> [line number(s) to replay]
@@ -971,35 +971,35 @@ Usage: replay <capture file> [line number(s) to replay]
 Example(s): replay sniffed.out
             replay sniffed.out 1,4
             replay sniffed.out 2-10
-        '''
+        """
         replayTraffic(arg.split())
 
     def do_start(self, arg):
-        '''
+        """
 Description: start forwarding UART traffic
 
 Usage:	start
 
 Example(s): start
-        '''
+        """
         startTraffic(arg.split())
 
     def do_stop(self, arg):
-        '''
+        """
 Description: stop forwarding UART traffic
 
 Usage:	stop
 
 Example(s): stop
-        '''
+        """
         stopTraffic(arg.split())
 
     def do_watch(self, arg):
-        '''
+        """
 Description: watch UART traffic
 
 Usage:	watch
-        '''
+        """
         watch(arg.split())
         watchWaitExit()
 
