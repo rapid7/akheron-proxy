@@ -611,7 +611,6 @@ def dataReceivedCallbackB(data):
 lastPrinted = "None"
 portDataOutBuffer = {}
 delimMatched = {}
-portDataOutBuffer = {}
 bytesOnLine = 0
 
 
