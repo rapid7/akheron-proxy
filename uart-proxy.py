@@ -7,27 +7,23 @@
 #
 # Copyright 2020
 
-try:
-    import argparse
-    import serial
-    from serial.tools.list_ports import comports
-    import signal
-    import cmd
-    import serial_processor
-    import threading
-    from time import sleep
-    from enum import Enum, auto
-    import functools
-    import operator
-    import os.path
+import argparse
+import serial
+from serial.tools.list_ports import comports
+import signal
+import cmd
+import serial_processor
+import threading
+from time import sleep
+from enum import Enum, auto
+import functools
+import operator
+import os.path
 
-    try:
-        import readline
-    except ImportError:
-        readline = None
-except ImportError as e:
-    print("Error on module import: %s" % (str(e)))
-    exit()
+try:
+    import readline
+except ImportError:
+    readline = None
 
 
 class SupportedChecksums(Enum):
