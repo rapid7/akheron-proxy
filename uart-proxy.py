@@ -42,20 +42,29 @@ histfile = os.path.join(os.path.expanduser("~"), ".uart-proxy_history")
 histsize = 1000
 
 # Port settings, as provided via the 'portset' command.
-portSettings = {}
-portSettings["A"] = {"dev": "", "baud": 0}
-portSettings["B"] = {"dev": "", "baud": 0}
+portSettings = {
+    "A": {
+        "dev": "",
+        "baud": 0
+    },
+    "B": {
+        "dev": "",
+        "baud": 0
+    }
+}
 
 # Delemiters for start-of-message and end-of-message, as provided via 'delimset' command.
-msgDelims = {}
-msgDelims["start"] = []
-msgDelims["end"] = []
+msgDelims = {
+    "start": [],
+    "end": []
+}
 delimMatching = False
 
 # Pattern replacement/substitution, as provided via the 'replaceset' command.
-replacePatterns = {}
-replacePatterns["A"] = {}
-replacePatterns["B"] = {}
+replacePatterns = {
+    "A": {},
+    "B": {}
+}
 
 # Pattern replacement/substitution checksum recalculation method, as provided via the 'checksumset' command.
 replaceChecksums = {
@@ -64,9 +73,10 @@ replaceChecksums = {
 }
 
 # Temp buffers for holding incoming (RX'd) data to check against msgDelims.
-checkMsgBuffers = {}
-checkMsgBuffers["A"] = []
-checkMsgBuffers["B"] = []
+checkMsgBuffers = {
+    "A": [],
+    "B": []
+}
 checkMsgBufferMax = 0
 
 # When capturing to an external file
@@ -76,9 +86,10 @@ trafficPassing = False
 watching = False
 
 # Resource locks
-writerLock = {}
-writerLock["A"] = threading.Lock()
-writerLock["B"] = threading.Lock()
+writerLock = {
+    "A": threading.Lock(),
+    "B": threading.Lock()
+}
 teeLock = threading.Lock()
 
 ### Methods ###
