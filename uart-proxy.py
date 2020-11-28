@@ -130,7 +130,7 @@ def listSerialPorts(args=""):
 # Returns: n/a
 def portGet(args=""):
     for p in ["A", "B"]:
-        print("Port \"%s\": " % (p), end="")
+        print("Port \"%s\": " % p, end="")
         if portSettings[p]["dev"]:
             print("device \"%s\" at %i" % (portSettings[p]["dev"], portSettings[p]["baud"]), end="")
         print()
@@ -184,7 +184,7 @@ def portSet(args=""):
 # Returns: n/a
 def delimGet(args=""):
     for d in ["start", "end"]:
-        print("%5s delimiters: " % (d), end="")
+        print("%5s delimiters: " % d, end="")
         if msgDelims[d]:
             for e in msgDelims[d]:
                 print(" ".join(format("0x%02x" % int(n, 16)) for n in e) + ", ", end="")
@@ -234,7 +234,7 @@ def portSetApply():
             portSettingsMissing.append(p)
     if len(portSettingsMissing) > 0:
         portStr = "\" and \"".join(portSettingsMissing)
-        print("Port \"%s\" missing settings, please use the \"portset\" command to set device and baud." % (portStr))
+        print("Port \"%s\" missing settings, please use the \"portset\" command to set device and baud." % portStr)
         return False
 
     # Apply serial port settings and open ports.
@@ -682,7 +682,7 @@ def dataReceivedCallback(data, p):
                         portDataOutBuffer[outp] = []
                 if not delimMatching:
                     # Send byte along to the other port now...
-                    processor.write(outDevID, (b).to_bytes(1, byteorder='big'))
+                    processor.write(outDevID, b.to_bytes(1, byteorder='big'))
 
 
 processor = None
@@ -1007,7 +1007,7 @@ Usage:	watch
         watchWaitExit()
 
     def do_version(self, arg):
-        print("v%s" % (version))
+        print("v%s" % version)
 
     def do_exit(self, arg):
         shutdown()
@@ -1049,7 +1049,7 @@ def main():
         return
 
     if cmdlineArgs.version:
-        print("v%s" % (version))
+        print("v%s" % version)
         return
 
     if cmdlineArgs.background:
