@@ -20,6 +20,7 @@ try:
     import functools
     import operator
     import os.path
+
     try:
         import readline
     except ImportError:
@@ -30,10 +31,10 @@ except ImportError as e:
 
 
 class SupportedChecksums(Enum):
-    Checksum8Xor            = auto()
-    Checksum8Modulo256      = auto()
+    Checksum8Xor = auto()
+    Checksum8Modulo256 = auto()
     Checksum8Modulo256Plus1 = auto()
-    Checksum82sComplement   = auto()
+    Checksum82sComplement = auto()
 
 
 ### Globals ###
@@ -102,13 +103,14 @@ def welcomeBanner():
 Welcome to the UART Proxy!
           v%s
 ##########################
-	''' % (version))
+''' % version)
+
 
 # 'list' command, displays available serial ports.
 # args:
 #   '-v': enable verbose listing of more details
 # Returns: n/a
-def listSerialPorts(args = ""):
+def listSerialPorts(args=""):
     if len(args) == 1 and args[0] == "-v":
         verbose = True
     else:
@@ -121,15 +123,17 @@ def listSerialPorts(args = ""):
             print("    desc: {}".format(port_info.description))
             print("    hwid: {}".format(port_info.hwid))
 
+
 # 'portget' command, allows user to dump current serial port settings in the app.
 # args: n/a
 # Returns: n/a
-def portGet(args = ""):
+def portGet(args=""):
     for p in ["A", "B"]:
-        print("Port \"%s\": " % (p), end ="")
+        print("Port \"%s\": " % (p), end="")
         if portSettings[p]["dev"]:
-            print("device \"%s\" at %i" % (portSettings[p]["dev"], portSettings[p]["baud"]), end = "")
+            print("device \"%s\" at %i" % (portSettings[p]["dev"], portSettings[p]["baud"]), end="")
         print()
+
 
 # 'portset' command, allows user to set serial port settings.
 # args:
@@ -137,7 +141,7 @@ def portGet(args = ""):
 #   [1]: specifies the serial device name  (e.g. "/dev/ttyUSB0")
 #   [2]: specifies the baud speed (e.g. 115200)
 # Returns: n/a
-def portSet(args = ""):
+def portSet(args=""):
     if len(args) != 3:
         print("Incorrect number of args, type \"help\" for usage")
         return
@@ -171,18 +175,21 @@ def portSet(args = ""):
     else:
         otherPort = "A"
     if portSettings[port]["dev"] == portSettings[otherPort]["dev"]:
-        print("WARNING: both port \"A\" and \"B\" are set to device %s, YOU PROBABLY DON'T WANT THIS." % (portSettings[port]["dev"]))
+        print("WARNING: both port \"A\" and \"B\" are set to device %s, YOU PROBABLY DON'T WANT THIS." % (
+            portSettings[port]["dev"]))
+
 
 # 'delimget' command, allows user to dump current start-of-message and end-of-message delimeters.
 # Returns: n/a
-def delimGet(args = ""):
+def delimGet(args=""):
     for d in ["start", "end"]:
-        print("%5s delimiters: " % (d), end ="")
+        print("%5s delimiters: " % (d), end="")
         if msgDelims[d]:
             for e in msgDelims[d]:
-                print(" ".join(format("0x%02x" % int(n, 16)) for n in e) + ", ", end = "")
-            print("\b\b ", end = "")
+                print(" ".join(format("0x%02x" % int(n, 16)) for n in e) + ", ", end="")
+            print("\b\b ", end="")
         print()
+
 
 # 'delimset' command, allows user to set start-of-message and end-of-message delimiters.
 # args:
@@ -191,7 +198,7 @@ def delimGet(args = ""):
 #        - values separated by spaces are considered a sequence
 #        - commas denote separate delimiters
 # Returns: n/a
-def delimSet(args = ""):
+def delimSet(args=""):
     global msgDelims
 
     if len(args) < 1:
@@ -215,6 +222,7 @@ def delimSet(args = ""):
             if len(j) > 0:
                 delim.append(hex(int(j, 16)))
         msgDelims[settingType].append(delim)
+
 
 # Apply serial port device settings before executing sniffing/replay operations.
 # Returns: Serial objects for open ports "A" and "B"
@@ -243,13 +251,15 @@ def portSetApply():
         port[p].close()
     return True
 
+
 # 'replaceget' command, allows user to dump current "substitute pattern-X-for-Y" values.
 # Returns: n/a
-def replaceGet(args = ""):
+def replaceGet(args=""):
     for p in ["A", "B"]:
         print("Replace port %c pattern X -> pattern Y:" % p)
         for r in replacePatterns[p]:
             print("  %s -> %s" % (str(r), str(" ".join(replacePatterns[p][r]))))
+
 
 # 'replaceset' command, allows user to set "substitute pattern-X-for-Y" values.
 # args:
@@ -259,7 +269,7 @@ def replaceGet(args = ""):
 #        - "arrow" (i.e. "->") denotes pattern X (left-hand side) should be swapped for Y (RHS)
 #        - commas denote separate "substitute pattern-X-for-Y" pairs
 # Returns: n/a
-def replaceSet(args = ""):
+def replaceSet(args=""):
     global replacePatterns
 
     if len(args) < 1:
@@ -292,21 +302,23 @@ def replaceSet(args = ""):
             index += 1
         replacePatterns[port][" ".join(pattern["LHS"])] = pattern["RHS"]
 
+
 # 'checksumget' command, allows user to output the current checksum recalculation used after pattern replacements
 # Returns: n/a
-def checksumGet(args = ""):
+def checksumGet(args=""):
     for p in ["A", "B"]:
         if replaceChecksums[p]:
             print(f"Replace on port {p} using checksum '{replaceChecksums[p].name}'")
         else:
             print(f"No replace checksum specified on port {p}")
 
+
 # 'checksumset' command, allows user to set checksum recalculation used after pattern replacements
 # args:
 #   [0]: specifies the port's ("A" or "B") traffic to apply the checksum recalculation during pattern replacements
 #   [1]: specifies the integer value or name of the checksum
 # Returns: n/a
-def checksumSet(args = ""):
+def checksumSet(args=""):
     global replaceChecksums
 
     if len(args) < 1:
@@ -331,15 +343,16 @@ def checksumSet(args = ""):
                 print(f"{checksum.value}: {checksum.name}")
     return
 
+
 def replacePatternsIfMatched(data, patterns, checksumMethod):
     if len(patterns) == 0:
         # No patterns to match on, we're done
         return data
-    for k,v in patterns.items():
+    for k, v in patterns.items():
         kList = k.split(" ")
         matchList = [int(i, 16) for i in kList]
         lenML = len(matchList)
-        for i in range(len(data)-lenML + 1):
+        for i in range(len(data) - lenML + 1):
             if matchList == data[i:i + lenML]:
                 data[i:i + lenML] = [int(val, 16) for val in v]
                 checksum = calculateChecksum(data[:-1], checksumMethod)
@@ -347,6 +360,7 @@ def replacePatternsIfMatched(data, patterns, checksumMethod):
                     data[-1] = checksum
                 break
     return data
+
 
 def calculateChecksum(data, checksumMethod):
     if checksumMethod is None:
@@ -365,12 +379,13 @@ def calculateChecksum(data, checksumMethod):
 
     return value
 
+
 # Check a received set of bytes for a match to a start-of-message or end-of-message delim.
 # port: indicates which port ("A" or "B") delimiters should be used for this check
 # startOrEnd: indicates if the "start" or "end" message delimiters should be checked.
 # byte: new byte of data received
 # Returns: matched string (delim) value OR an empty string if no match
-def checkMsg(port, startOrEnd, byte = None):
+def checkMsg(port, startOrEnd, byte=None):
     global checkMsgBufferMax
 
     matchedStr = ""
@@ -395,12 +410,13 @@ def checkMsg(port, startOrEnd, byte = None):
                 break
     return matchedStr
 
+
 # Similar to the *nix command 'tee', this method sends output to both the display
 #   and capture file, if in use.
 # string: string value to display+write
 # end: trailing character for 'string'
 # Returns: n/a
-def tee(string = "", end = "\n"):
+def tee(string="", end="\n"):
     with teeLock:
         global captureFileSize
 
@@ -418,13 +434,14 @@ def tee(string = "", end = "\n"):
                 captureFileSize += len(string) + len(end)
 
         if watching:
-            print(string, end = end, flush = True)
+            print(string, end=end, flush=True)
+
 
 # Capturing traffic between two ports.
 # args:
 #   [0]: filename to write captured data to
 # Returns: n/a
-def captureTrafficStart(args = ""):
+def captureTrafficStart(args=""):
     global replacePatterns
     global captureFile
     global captureFileSize
@@ -448,11 +465,12 @@ def captureTrafficStart(args = ""):
 
     print("Saving captured traffic to \"%s\"..." % captureFileName)
 
+
 # Capturing traffic between two ports.
 # args:
 #   [0]: filename to write captured data to
 # Returns: n/a
-def captureTrafficStop(args = ""):
+def captureTrafficStop(args=""):
     global captureFile
     global captureFileSize
 
@@ -468,7 +486,7 @@ def captureTrafficStop(args = ""):
 # args:
 #   [0]: filename to dump captured data from
 # Returns: n/a
-def dumpCapture(args = ""):
+def dumpCapture(args=""):
     if len(args) != 1:
         print("Incorrect number of args, type \"help\" for usage")
         return
@@ -486,12 +504,13 @@ def dumpCapture(args = ""):
         print("%5u: %s" % (lineNum, line.rstrip()))
         lineNum += 1
 
+
 # Replaying traffic between two ports.
 # args:
 #   [0]: filename to replay captured data from
 #   [1]: line(s) of the replay file of the data to be replayed, commas and hyphens supported (OPTIONAL)
 # Returns: n/a
-def replayTraffic(args = ""):
+def replayTraffic(args=""):
     if len(args) == 0 or len(args) > 2:
         print("Incorrect number of args, type \"help\" for usage")
         return
@@ -516,12 +535,12 @@ def replayTraffic(args = ""):
             hyphenPos = i.find("-")
             if hyphenPos > 0:
                 rangeStart = int(i[0:hyphenPos])
-                rangeEnd = int(i[hyphenPos+1:]) + 1
+                rangeEnd = int(i[hyphenPos + 1:]) + 1
                 lines.extend(list(range(rangeStart, rangeEnd)))
             else:
                 lines.append(int(i))
     else:
-        lines = list(range(1,len(replayFileContents) + 1))
+        lines = list(range(1, len(replayFileContents) + 1))
 
     # Apply serial port settings
     if not portSetApply():
@@ -539,7 +558,8 @@ def replayTraffic(args = ""):
             break;
         lineNum += 1
     if direction == "unknown":
-        print("Could not detect the direction to send replay data, make sure your capture file and line selection are valid")
+        print(
+            "Could not detect the direction to send replay data, make sure your capture file and line selection are valid")
         return
 
     if direction == "A -> B":
@@ -566,7 +586,7 @@ def replayTraffic(args = ""):
             if lineNum in lines and currDirection == direction:
                 lineData = list(map(lambda b: int(b, 16), line[startIndex:].rstrip().split()))
                 lineData = replacePatternsIfMatched(lineData, replacePatterns[p], replaceChecksums[p])
-                #print("%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in lineData) + " "))
+                # print("%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in lineData) + " "))
                 processor.write(outDevID, bytes(lineData))
                 tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in lineData) + " "), "")
             lineNum += 1
@@ -574,21 +594,26 @@ def replayTraffic(args = ""):
         lastPrinted = p
     watchWaitExit()
 
+
 def dataReceivedCallbackA(data):
-    #print("PJB: callbackA, data = %s, type %s" % (str(data), str(type(data))))
+    # print("PJB: callbackA, data = %s, type %s" % (str(data), str(type(data))))
     dataReceivedCallback(data, "A")
     return data
 
+
 def dataReceivedCallbackB(data):
-    #print("PJB: callbackB, data = %s, type %s" % (str(data), str(type(data))))
+    # print("PJB: callbackB, data = %s, type %s" % (str(data), str(type(data))))
     dataReceivedCallback(list(data), "B")
     return data
+
 
 lastPrinted = "None"
 portDataOutBuffer = {}
 delimMatched = {}
 portDataOutBuffer = {}
 bytesOnLine = 0
+
+
 def dataReceivedCallback(data, p):
     # When matching on start/stop message delimters, we'll buffer the data in case
     # there are replacements/substitutions to make...
@@ -662,10 +687,11 @@ def dataReceivedCallback(data, p):
 
 processor = None
 
+
 # Start traffic between two ports.
 # args: none
 # Returns: n/a
-def startTraffic(args = ""):
+def startTraffic(args=""):
     global checkMsgBufferMax
     checkMsgBufferMax = 0
     global delimMatching
@@ -726,23 +752,27 @@ def startTraffic(args = ""):
     print("Data now PASSING between ports \"%s\" <-> \"%s\"..." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
     return
 
+
 # Start traffic between two ports.
 # args: none
 # Returns: n/a
-def stopTraffic(args = ""):
+def stopTraffic(args=""):
     global trafficPassing
     trafficPassing = False
 
     if processor:
         processor.stop()
-        print("Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
+        print(
+            "Data now BLOCKED between ports \"%s\" <-> \"%s\"." % (portSettings["A"]["dev"], portSettings["B"]["dev"]))
     return
+
 
 def watchWaitExit():
     while watching:
         sleep(.25)
 
-def watch(args = ""):
+
+def watch(args=""):
     if not trafficPassing:
         print("Data is not currently being passed between ports; run 'start' command first.")
         return
@@ -750,6 +780,7 @@ def watch(args = ""):
     global watching
     print("Watching data passed between ports. Press CTRL-C to stop...")
     watching = True
+
 
 def shutdown():
     if processor:
@@ -889,9 +920,9 @@ Example(s): checksumset A 1
     def help_checksumset(self):
         arg = "checksumset"
         try:
-            doc=getattr(self, "do_" + arg).__doc__
+            doc = getattr(self, "do_" + arg).__doc__
             if doc:
-                self.stdout.write("%s\n"%str(doc))
+                self.stdout.write("%s\n" % str(doc))
                 self.stdout.write("Available Checksums:\n")
                 for checksum in SupportedChecksums:
                     self.stdout.write(f"  {checksum.value}: {checksum.name}\n")
@@ -899,7 +930,7 @@ Example(s): checksumset A 1
                 return
         except AttributeError:
             pass
-        self.stdout.write("%s\n"%str(self.nohelp % (arg,)))
+        self.stdout.write("%s\n" % str(self.nohelp % (arg,)))
         return
 
     def do_capturestart(self, arg):
@@ -989,24 +1020,23 @@ Usage:	watch
     def emptyline(self):
         pass
 
+
 ############################
 # main!
 ############################
 def main():
-
     # Setup command line arg parsing.
-    argParser = argparse.ArgumentParser(description = "UART Proxy app")
-    argParser.add_argument("-l", action = "store_true", dest = "listPorts",
-                           help = "list all serial ports available to use")
-    argParser.add_argument("-b", action = "store_true", dest = "background",
-                           help = "background the app for use with web browser UI (TBD)")
-    argParser.add_argument("-q", action = "store_true", dest = "quiet",
-                           help = "skip the banner on startup")
-    argParser.add_argument("-V", "--version", action="store_true", dest = "version",
+    argParser = argparse.ArgumentParser(description="UART Proxy app")
+    argParser.add_argument("-l", action="store_true", dest="listPorts",
+                           help="list all serial ports available to use")
+    argParser.add_argument("-b", action="store_true", dest="background",
+                           help="background the app for use with web browser UI (TBD)")
+    argParser.add_argument("-q", action="store_true", dest="quiet",
+                           help="skip the banner on startup")
+    argParser.add_argument("-V", "--version", action="store_true", dest="version",
                            help="show version information")
     argParser.add_argument("-v", "--verbose", action="store_true",
                            help="show more information")
-
 
     # Parse (and action on) the command line args...
     cmdlineArgs = argParser.parse_args()
@@ -1030,6 +1060,7 @@ def main():
 
     # "interactive prompt" (a.k.a. REPL).
     repl().cmdloop_until_keyboard_interrupt()
+
 
 if __name__ == "__main__":
     main()
