@@ -159,9 +159,9 @@ def portSet(args=""):
 
     # Dumb 'validation' of device and baud values: just try opening it and error if it didn't work!
     try:
-        portTry = serial.Serial(deviceName, int(baud), timeout=0);
+        portTry = serial.Serial(deviceName, int(baud), timeout=0)
     except serial.SerialException as e:
-        print("Could not open device \"%s\" at baud \"%s\": %s" % (deviceName, baud, str(e)));
+        print("Could not open device \"%s\" at baud \"%s\": %s" % (deviceName, baud, str(e)))
         return
 
     # If we got here, it worked, so save off the values...
@@ -241,9 +241,9 @@ def portSetApply():
     port = {}
     for p in ["A", "B"]:
         try:
-            port[p] = serial.Serial(portSettings[p]["dev"], portSettings[p]["baud"], timeout=0);
+            port[p] = serial.Serial(portSettings[p]["dev"], portSettings[p]["baud"], timeout=0)
         except serial.SerialException as e:
-            print("Could not open device \"%s\": %s" % (portSettings[p]["dev"], str(e)));
+            print("Could not open device \"%s\": %s" % (portSettings[p]["dev"], str(e)))
             if p == "B":
                 port["A"].close()
             return False
@@ -556,7 +556,7 @@ def replayTraffic(args=""):
         if line.find("A -> B") == 0 or line.find("B -> A") == 0:
             direction = line[0:line.find(":")]
         if lineNum in lines and direction != "unknown":
-            break;
+            break
         lineNum += 1
     if direction == "unknown":
         print(
