@@ -8,17 +8,18 @@
 # Copyright 2020
 
 import argparse
-import serial
-from serial.tools.list_ports import comports
-import signal
 import cmd
-import serial_processor
-import threading
-from time import sleep
-from enum import Enum, auto
 import functools
 import operator
 import os.path
+import threading
+from enum import Enum, auto
+from time import sleep
+
+import serial
+from serial.tools.list_ports import comports
+
+import serial_processor
 
 try:
     import readline
