@@ -823,7 +823,8 @@ class ProxyRepl(cmd.Cmd):
     def postloop(self):
         self.__write_history()
 
-    def __write_history(self):
+    @staticmethod
+    def __write_history():
         if readline:
             readline.set_history_length(histsize)
             readline.write_history_file(histfile)
