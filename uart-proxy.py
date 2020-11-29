@@ -1025,15 +1025,15 @@ def main():
     # Setup command line arg parsing.
     arg_parser = argparse.ArgumentParser(description="UART Proxy app")
     arg_parser.add_argument("-l", action="store_true", dest="listPorts",
-                           help="list all serial ports available to use")
+                            help="list all serial ports available to use")
     arg_parser.add_argument("-b", action="store_true", dest="background",
-                           help="background the app for use with web browser UI (TBD)")
+                            help="background the app for use with web browser UI (TBD)")
     arg_parser.add_argument("-q", action="store_true", dest="quiet",
-                           help="skip the banner on startup")
+                            help="skip the banner on startup")
     arg_parser.add_argument("-V", "--version", action="store_true", dest="version",
-                           help="show version information")
+                            help="show version information")
     arg_parser.add_argument("-v", "--verbose", action="store_true",
-                           help="show more information")
+                            help="show more information")
 
     # Parse (and action on) the command line args...
     cmdline_args = arg_parser.parse_args()
