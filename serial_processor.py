@@ -84,6 +84,12 @@ class SerialProcessor:
     def __init__(self, conf_a, conf_b):
         super().__init__()
         self.logger = logging.getLogger('SerialProcessor')
+        self.thread_a = None
+        self.transport_a = None
+        self.protocol_a = None
+        self.thread_b = None
+        self.transport_b = None
+        self.protocol_b = None
         self.conf_a = conf_a
         self.conf_b = conf_b
 
