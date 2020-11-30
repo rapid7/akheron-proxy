@@ -83,7 +83,6 @@ class ProxyProtocol(serial.threaded.Protocol):
 class SerialProcessor:
     def __init__(self, conf_a, conf_b):
         super().__init__()
-        self.logger = logging.getLogger('SerialProcessor')
         self.thread_a = None
         self.transport_a = None
         self.protocol_a = None
@@ -92,6 +91,7 @@ class SerialProcessor:
         self.protocol_b = None
         self.conf_a = conf_a
         self.conf_b = conf_b
+        self.logger = logging.getLogger('SerialProcessor')
 
         self.ser_a = serial.Serial(
             port=self.conf_a['device'],
