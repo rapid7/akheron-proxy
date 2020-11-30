@@ -250,15 +250,16 @@ def main(argv):
 
 
 def print_data_received(data):
-        logging.info(f"(print_data_received: len={len(data)}, data={data}")
-        return data
+    logging.info(f"(print_data_received: len={len(data)}, data={data}")
+    return data
+
 
 def reverse_data_received(data):
-        logging.info(f"reverse_data_received: len={len(data)}, data={data}")
-        tmp = bytearray(data)
-        tmp.reverse()
-        logging.debug(f"reverse_data_received: tmp={tmp}")
-        return tmp
+    logging.info(f"reverse_data_received: len={len(data)}, data={data}")
+    tmp = bytearray(data)
+    tmp.reverse()
+    logging.debug(f"reverse_data_received: tmp={tmp}")
+    return tmp
 
 
 if __name__ == "__main__":
