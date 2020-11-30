@@ -204,6 +204,7 @@ class SerialProcessor:
 
 # Simple test client
 def main(argv):
+    processor = None
     try:
         parser = argparse.ArgumentParser()
         parser.add_argument("alphadev", help="alpha serial device")
@@ -245,7 +246,8 @@ def main(argv):
         # processor.write(DeviceIdentifier.BETA, 'helloB\r\n'.encode())
         # time.sleep(2)
     finally:
-        processor.stop()
+        if processor:
+            processor.stop()
         logging.shutdown()
 
 
