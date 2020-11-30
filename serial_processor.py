@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import argparse
 import logging
+import sys
+from enum import Enum
+
 import serial
 import serial.threaded
-import sys
-import time
-from enum import Enum
 
 
 class DeviceIdentifier(Enum):
