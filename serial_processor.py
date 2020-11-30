@@ -24,7 +24,7 @@ class ProxyProtocolFactory:
                           f"data_pass_through_callback={self.data_pass_through_callback}, "
                           f"data_received_callback={self.data_received_callback}")
 
-    def createProxyProtocol(self):
+    def create_proxy_protocol(self):
         self.logger.debug(f"creating ProxyProtocol with dev_id={self.dev_id}, "
                           f"pass_through={self.pass_through}, "
                           f"data_pass_through_callback={self.data_pass_through_callback}, "
@@ -143,7 +143,7 @@ class SerialProcessor:
                 DeviceIdentifier.ALPHA,
                 pass_through=self.conf_a['pass_through'],
                 data_pass_through_callback=self.data_pass_through,
-                data_received_callback=self.conf_a['data_received_callback']).createProxyProtocol)
+                data_received_callback=self.conf_a['data_received_callback']).create_proxy_protocol)
         # Start the thread’s activity
         self.thread_a.start()
         self.transport_a, self.protocol_a = self.thread_a.connect()
@@ -156,7 +156,7 @@ class SerialProcessor:
                 DeviceIdentifier.BETA,
                 pass_through=self.conf_b['pass_through'],
                 data_pass_through_callback=self.data_pass_through,
-                data_received_callback=self.conf_b['data_received_callback']).createProxyProtocol)
+                data_received_callback=self.conf_b['data_received_callback']).create_proxy_protocol)
         # Start the thread’s activity
         self.thread_b.start()
         self.transport_b, self.protocol_b = self.thread_b.connect()
