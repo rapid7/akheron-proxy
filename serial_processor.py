@@ -114,8 +114,8 @@ class SerialProcessor:
         self.ser_a.flushInput()
         self.ser_b.flushInput()
         self.logger.debug(f"__init__: conf_a={self.conf_a}, conf_b={self.conf_b}")
-        logging.info(f"{DeviceIdentifier.ALPHA.name} device: {self.conf_a['device']}")
-        logging.info(f"{DeviceIdentifier.BETA.name} device: {self.conf_b['device']}")
+        self.logger.info(f"{DeviceIdentifier.ALPHA.name} device: {self.conf_a['device']}")
+        self.logger.info(f"{DeviceIdentifier.BETA.name} device: {self.conf_b['device']}")
 
     def start(self):
         """Start the reader threads."""
