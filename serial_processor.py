@@ -38,6 +38,7 @@ class ProxyProtocol(serial.threaded.Protocol):
     """
     Read data and write to destination device.
     """
+
     def __init__(self,
                  dev_id="unknown",
                  pass_through=None,
@@ -246,6 +247,7 @@ def main(argv):
     finally:
         processor.stop()
         logging.shutdown()
+
 
 def print_data_received(data):
         logging.info(f"(print_data_received: len={len(data)}, data={data}")
