@@ -129,7 +129,7 @@ class SerialProcessor:
 
         self.ser_a.flushInput()
         self.ser_b.flushInput()
-        self.logger.debug(f"__init__: conf_a={self.conf_a}, conf_b={self.conf_b}")
+        self.logger.debug(f"conf_a={self.conf_a}, conf_b={self.conf_b}")
         self.logger.info(f"{DeviceIdentifier.ALPHA.name} device: {self.conf_a['device']}")
         self.logger.info(f"{DeviceIdentifier.BETA.name} device: {self.conf_b['device']}")
 
@@ -165,7 +165,7 @@ class SerialProcessor:
 
     def stop(self):
         """Stop the reader threads."""
-        self.logger.info(f"stop: closing reader threads")
+        self.logger.info(f"closing reader threads")
         self.thread_a.close()
         self.thread_b.close()
 
