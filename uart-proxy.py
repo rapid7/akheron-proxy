@@ -51,7 +51,7 @@ portSettings = {
     }
 }
 
-# Delemiters for start-of-message and end-of-message, as provided via 'delimset' command.
+# Delimiters for start-of-message and end-of-message, as provided via 'delimset' command.
 msgDelims = {
     "start": [],
     "end": []
@@ -177,7 +177,7 @@ def port_set(args=""):
             portSettings[port]["dev"]))
 
 
-# 'delimget' command, allows user to dump current start-of-message and end-of-message delimeters.
+# 'delimget' command, allows user to dump current start-of-message and end-of-message delimiters.
 # Returns: n/a
 def delim_get(args=""):
     for d in ["start", "end"]:
@@ -192,7 +192,7 @@ def delim_get(args=""):
 # 'delimset' command, allows user to set start-of-message and end-of-message delimiters.
 # args:
 #   [0]: specifies type of message delimiter ("start" or "end") being set
-#   [1]: specifies the value(s) to be considered delimeters
+#   [1]: specifies the value(s) to be considered delimiters
 #        - values separated by spaces are considered a sequence
 #        - commas denote separate delimiters
 # Returns: n/a
@@ -204,7 +204,7 @@ def delim_set(args=""):
         return
 
     if trafficPassing:
-        print("Cannot change message demlims while passing traffic, please \"stop\" first")
+        print("Cannot change message delims while passing traffic, please \"stop\" first")
         return
 
     setting_type = args[0]
@@ -244,7 +244,7 @@ def port_set_apply():
             if p == "B":
                 port["A"].close()
             return False
-    # NOTE: close these and retrunt boolean
+    # NOTE: close these and return boolean
     for p in ["A", "B"]:
         port[p].close()
     return True
@@ -612,7 +612,7 @@ bytesOnLine = 0
 
 
 def data_received_callback(data, p):
-    # When matching on start/stop message delimters, we'll buffer the data in case
+    # When matching on start/stop message delimiters, we'll buffer the data in case
     # there are replacements/substitutions to make...
     global delimMatched
     global lastPrinted
@@ -653,7 +653,7 @@ def data_received_callback(data, p):
                     # We did match a start-of-message delim.
                     if len(delimMatched[p]["start"]) > 1:
                         # It was a multi-byte start-of-message delim, so remove previous data bytes
-                        # that we had alrady printed.
+                        # that we had already printed.
                         tee("\b" * 5 * (len(delimMatched[p]["start"]) - 1), "")
                     if bytesOnLine >= len(delimMatched[p]["start"]):
                         # Need to erase and go to a new line now (also indent!)
@@ -784,7 +784,7 @@ def shutdown():
         # Cleanup serial port threads...
         processor.stop()
     if captureFile:
-        # Close our exisitng capture...
+        # Close our existing capture...
         captureFile.close()
 
 
