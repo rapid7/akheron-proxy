@@ -256,7 +256,8 @@ def replace_get(args=""):
     for p in ["A", "B"]:
         print("Replace port %c pattern X -> pattern Y:" % p)
         for r in replacePatterns[p]:
-            print("  %s -> %s" % (str(r), str(" ".join(replacePatterns[p][r]))))
+            print("  %s -> %s" % (str(" ".join(format("0x%02x" % int(n, 16)) for n in r.split(" "))),
+                    str(" ".join(format("0x%02x" % int(n, 16)) for n in replacePatterns[p][r]))))
 
 
 # 'replaceset' command, allows user to set "substitute pattern-X-for-Y" values.
