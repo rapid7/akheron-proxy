@@ -1,4 +1,4 @@
-# Documentation for Akheron Proxy
+# Akheron Proxy
 
 ## Introduction
 
