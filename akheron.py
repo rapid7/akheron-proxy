@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 #
-# !!!POC!!!
-#
-# uart-proxy application for capturing, replaying, and modifying
-# UART data!
+# akheron - UART proxy tool for inter-chip analysis, capturing, replaying, and
+# modifying UART data!
 #
 # Copyright 2020
 
@@ -36,7 +34,7 @@ class SupportedChecksums(Enum):
 
 # Globals #####
 version = "0.1"
-histfile = os.path.join(os.path.expanduser("~"), ".uart-proxy_history")
+histfile = os.path.join(os.path.expanduser("~"), ".akheron_history")
 histsize = 1000
 
 # Port settings, as provided via the 'portset' command.
@@ -96,12 +94,12 @@ teeLock = threading.Lock()
 # Banner displayed at startup.
 # Returns: n/a
 def welcome_banner():
-    print('''
-##########################
-Welcome to the UART Proxy!
-          v%s
-##########################
-''' % version)
+    print(f'''
+######################################################
+Akheron Proxy, UART proxy tool for inter-chip analysis
+{f"version {version}".center(54, " ")}
+######################################################
+''')
 
 
 # 'list' command, displays available serial ports.
@@ -1025,7 +1023,7 @@ Usage:	watch
 ############################
 def main():
     # Setup command line arg parsing.
-    arg_parser = argparse.ArgumentParser(description="UART Proxy app")
+    arg_parser = argparse.ArgumentParser(description="UART proxy tool")
     arg_parser.add_argument("-l", action="store_true", dest="listPorts",
                             help="list all serial ports available to use")
     arg_parser.add_argument("-b", action="store_true", dest="background",
