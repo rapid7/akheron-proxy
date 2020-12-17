@@ -1,8 +1,8 @@
-# Documentation for uart-proxy
+# Documentation for Akheron Proxy
 
 ## Introduction
 
-The `uart-proxy` tool is written in python and designed to help lend visibility to UART inter-chip communications and aid in understanding/reversing/manipulating those comms to discern device functionality (both intended and unintended).  It does this by supporting several modes of operation:
+The `akheron` tool is written in python and designed to help lend visibility to UART inter-chip communications and aid in understanding/reversing/manipulating those comms to discern device functionality (both intended and unintended).  It does this by supporting several modes of operation:
 
 * forwarding/bridging traffic
   * passes/proxies traffic through from one device to the other (and vice-versa) while providing visibility of that data to the user
@@ -33,7 +33,7 @@ But what exactly are they sending back and forth between each other...???
 
 If we make ourselves a physical machine-in-the-middle, we can find out!
 
-The `uart-proxy` tool is designed to be run on a system with two serial ports (USB-to-serial adapters are fine, so long as the OS of the system supports them), acting as a proxy for sending traffic between those two ports.  Something like this:
+The `akheron` tool is designed to be run on a system with two serial ports (USB-to-serial adapters are fine, so long as the OS of the system supports them), acting as a proxy for sending traffic between those two ports.  Something like this:
 
 ```
     ^     +             ^     +
@@ -43,13 +43,13 @@ The `uart-proxy` tool is designed to be run on a system with two serial ports (U
 | +---------+         +---------+ |
 |   UART  1             UART  2   |
 |                                 |
-|    Machine-in-the-Middle        |
-|    (running uart-proxy)         |
+|     Machine-in-the-Middle       |
+|    (running Akheron Proxy)      |
 |                                 |
 +---------------------------------+
 ```
 
-If we physcially (and carefully!) break/cut the comm connections/wires between chip A and chip B and then route them to our Machine-in-the-Middle's serial ports, we'll be able to see what those chips are sending each other over their UART comms with `uart-proxy`:
+If we physcially (and carefully!) break/cut the comm connections/wires between chip A and chip B and then route them to our Machine-in-the-Middle's serial ports, we'll be able to see what those chips are sending each other over their UART comms with `akheron`:
 
 ```
 +------------+                               +------------+
@@ -64,21 +64,21 @@ If we physcially (and carefully!) break/cut the comm connections/wires between c
             | +---------+         +---------+ |
             |   UART  1             UART  2   |
             |                                 |
-            |    Machine-in-the-Middle        |
-            |    (running uart-proxy)         |
+            |     Machine-in-the-Middle       |
+            |    (running Akheron Proxy)      |
             |                                 |
             +---------------------------------+
 ```
 
-With a setup as such, `uart-proxy` is ready for use!
+With a setup as such, `akheron` is ready for use!
 
 ## Tool use
 
-Version 0.1 of the `uart-proxy` tool is first iteration on this effort, born of proof-of-concept code (blame @pbarry-r7 for the awful code in there).  It is a command-line tool, using a standard REPL for interaction.
+Version 0.1 of the `akheron` tool is first iteration on this effort, born of proof-of-concept code (blame @pbarry-r7 for the awful code in there).  It is a command-line tool, using a standard REPL for interaction.
 
 ### Requirements
 
-The `uart-proxy` tool requires Python 3.6 or later, and uses the [`pyserial`](https://pyserial.readthedocs.io/en/latest/pyserial.html) library for interfacing with the system's serial ports. It was tested on both macOS 10.15 and Ubuntu 18.04.
+The `akheron` tool requires Python 3.6 or later, and uses the [`pyserial`](https://pyserial.readthedocs.io/en/latest/pyserial.html) library for interfacing with the system's serial ports. It was tested on both macOS 10.15 and Ubuntu 18.04.
 
 #### Install Requirements
 ```
@@ -87,22 +87,22 @@ pip install -r requirements.txt
 
 ### Starting the tool
 
-You can start the `uart-proxy` from a terminal window in the top-level directory of the repo:
+You can start `akheron` from a terminal window in the top-level directory of the repo:
 
-`./uart-proxy.py`
+`./akheron.py`
 
-On many systems, access to serial devices is restricted. To avoid running `uart-proxy` with elevated privileges, ensure that your user account belongs to the same group as the device you wish to use. On Linux, the serial device is likely a member of the `dialout` group. Adding your user account to that group (e.g. `sudo usermod -a -G dialout $USER`) should allow you to access the device. In order for you to see the changes, you may need to logout and log back in to your account, or possibly reboot the system.
+On many systems, access to serial devices is restricted. To avoid running `akheron` with elevated privileges, ensure that your user account belongs to the same group as the device you wish to use. On Linux, the serial device is likely a member of the `dialout` group. Adding your user account to that group (e.g. `sudo usermod -a -G dialout $USER`) should allow you to access the device. In order for you to see the changes, you may need to logout and log back in to your account, or possibly reboot the system.
 
 Once running, you'll see a banner and a `> ` prompt:
 
 ```
-$ ./uart-proxy.py
+$ ./akheron.py
 
-##########################
-Welcome to the UART Proxy!
-          v0.1
-##########################
-	
+######################################################
+Akheron Proxy, UART proxy tool for inter-chip analysis
+                     version 0.1
+######################################################
+
 > 
 ```
 
@@ -270,5 +270,3 @@ Watch mode exited.
 Data now BLOCKED between ports "/dev/ttyUSB1" <-> "/dev/ttyUSB2".
 >
 ```
-
-:
