@@ -2,6 +2,30 @@
 
 ## Design
 
+### High-level design diagram
+
+```
++---------------+      +-------------------------+
+|               +----->+                         |
+|   Serial      |      |   Command and Capture   |
+|   Processor   |      |        Component        |
+|               +<-----+                         |
++-+-+-----------+      +-+-+-----------------+-+-+
+  | ^                    | ^                 ^ |
+  | |                    | |                 | |
+  | |                    | |                 | |
+  | |                    | |                 | |
+  v |                    v |                 | v
++-+-+--------+      +----+-+-------+ +-------+-+----+
+|            |      |              | |              |
+|   Serial   |      |     REPL     | |   Web App    |
+|  Hardware  |      |              | |              |
+|            |      |              | |              |
++------------+      +--------------+ +--------------+
+```
+
+
+
 ## Features
 
 Modes when interacting with the serial traffic:
