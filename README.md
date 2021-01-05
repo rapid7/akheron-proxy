@@ -68,9 +68,9 @@ If we physically cut the communication traces between chip A and chip B and then
 
 With a setup as such, `akheron` is ready for use!
 
-## Tool use
+## Command-Line Tool
 
-Version 0.1 of the `akheron` tool is the first iteration on this effort, born of proof-of-concept code (blame @pbarry-r7 for the awful code in there).  It is a command-line tool, using a standard REPL for interaction.
+`akheron` version 0.1 is the first iteration on this effort and born of proof-of-concept code. It is a command-line tool, using a standard REPL for interaction.
 
 ### Requirements
 
