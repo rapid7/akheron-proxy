@@ -109,9 +109,9 @@ A number of commands are available at this prompt, which you can access by typin
 
 Documented commands (type help <topic>):
 ========================================
-capturedump   delimget  list     replaceget  start
-capturestart  delimset  portget  replaceset  stop 
-capturestop   help      portset  replay      watch
+capturedump   checksumget  delimset  portget     replaceset  stop
+capturestart  checksumset  help      portset     replay      watch
+capturestop   delimget     list      replaceget  start
 
 Undocumented commands:
 ======================
