@@ -2,21 +2,17 @@
 
 ## Introduction
 
-The `akheron` tool is written in python and designed to help lend visibility to UART inter-chip communications and aid in understanding/reversing/manipulating those comms to discern device functionality (both intended and unintended).  It does this by supporting several modes of operation:
+The `akheron` tool is written in python and designed to help lend visibility to UART inter-chip communications and aid in understanding, reversing, and manipulating those communications to discern device functionality (both intended and unintended).  It does this by supporting several modes of operation:
 
-* forwarding/bridging traffic
-  * passes/proxies traffic through from one device to the other (and vice-versa) while providing visibility of that data to the user
-* capturing traffic
-  * saves UART communication data to a file for examination and/or replay
-* replaying traffic
-  * loads captured data from a file and replays it on the UART connection
-* replaying traffic with pattern replacement
-  * loads captured data from a file, replacing user-provided pattern matches with user-provided replacement values, and replays it on the UART connection
-  * also supports checksum recalculation+update on messages that have been altered
+* Bridging communications - proxies data between devices while providing visibility to the data
+* Capturing communications - saves UART communication data to a file for examination and replay
+* Replaying communications - loads captured data from a file and replays it on the UART connection
+  * Supports replay with user-provided pattern match and replacement values
+  * Supports replay with checksum recalculation and message updates
 
 ## Physical setup
 
-Inter-chip comms via UART is still a common design choice found in many devices, and it looks something like this:
+Inter-chip communication via UART is still a common design choice found in many devices, and it looks something like this:
 
 ```
 +------------+                           +------------+
@@ -27,9 +23,9 @@ Inter-chip comms via UART is still a common design choice found in many devices,
 
 ```
 
-In this example, chip A talks to chip B by sending data out chip A's transmit (TX) pin, where chip B reads that incoming data on its receive (RX) pin.  And chip B can send data out its transmit (TX) pin to be received by chip A on chip A's receive (RX) pin.
+In this example, chip A sends data to chip B by sending data out chip A's transmit (TX) pin and chip B receives that incoming data on its receive (RX) pin. Chip B sends data out its transmit (TX) pin to be received by chip A on chip A's receive (RX) pin.
 
-But what exactly are they sending back and forth between each other...???
+But what exactly are they sending back and forth between each other?
 
 If we make ourselves a physical machine-in-the-middle, we can find out!
 
@@ -49,7 +45,7 @@ The `akheron` tool is designed to be run on a system with two serial ports (USB-
 +---------------------------------+
 ```
 
-If we physcially (and carefully!) break/cut the comm connections/wires between chip A and chip B and then route them to our Machine-in-the-Middle's serial ports, we'll be able to see what those chips are sending each other over their UART comms with `akheron`:
+If we physically cut the communication traces between chip A and chip B and then route them to our machine-in-the-middle's serial ports, we'll be able to see what those chips are sending each other over their UART communications with `akheron`:
 
 ```
 +------------+                               +------------+
@@ -72,9 +68,9 @@ If we physcially (and carefully!) break/cut the comm connections/wires between c
 
 With a setup as such, `akheron` is ready for use!
 
-## Tool use
+## Command-Line Tool
 
-Version 0.1 of the `akheron` tool is first iteration on this effort, born of proof-of-concept code (blame @pbarry-r7 for the awful code in there).  It is a command-line tool, using a standard REPL for interaction.
+`akheron` version 0.1 is the first iteration on this effort and born of proof-of-concept code. It is a command-line tool, using a standard REPL for interaction.
 
 ### Requirements
 
@@ -113,9 +109,9 @@ A number of commands are available at this prompt, which you can access by typin
 
 Documented commands (type help <topic>):
 ========================================
-capturedump   delimget  list     replaceget  start
-capturestart  delimset  portget  replaceset  stop 
-capturestop   help      portset  replay      watch
+capturedump   checksumget  delimset  portget     replaceset  stop
+capturestart  checksumset  help      portset     replay      watch
+capturestop   delimget     list      replaceget  start
 
 Undocumented commands:
 ======================
@@ -237,7 +233,7 @@ The following steps show forwarding traffic between ports with replay of data (i
 
 1. replay captured data exactly as it was originally captured (i.e. no modification)
 1. set a replace operation to swap `0x64 0x61` sequences with `0x99 0x91` and replay (note the substituted data in the output)
-1. set a checksum method to update the final byte of the message with a `Checksum8Modulo256Plus1` of the preceeding bytes and replay
+1. set a checksum method to update the final byte of the message with a `Checksum8Modulo256Plus1` of the preceding bytes and replay
 
 
 ```
