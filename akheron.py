@@ -31,6 +31,11 @@ class SupportedChecksums(Enum):
     Checksum8Modulo256Plus1 = auto()
     Checksum82sComplement = auto()
 
+class teeOutputs(Enum):
+    onlyDisplay = auto()
+    onlyFile = auto()
+    both = auto()
+
 
 # Globals #####
 version = "0.1"
@@ -78,8 +83,12 @@ checkMsgBufferMax = 0
 # When capturing to an external file
 captureFile = None
 captureFileSize = 0
+captureStarted = False
+
 trafficPassing = False
+
 watching = False
+watchingStarted = False
 
 # Resource locks
 writerLock = {
@@ -413,11 +422,11 @@ def check_msg(port, start_or_end, byte=None):
 # string: string value to display+write
 # end: trailing character for 'string'
 # Returns: n/a
-def tee(string="", end="\n"):
+def tee(string="", end="\n", output=teeOutputs['both']):
     with teeLock:
         global captureFileSize
 
-        if captureFile:
+        if captureFile and output != teeOutputs.onlyDisplay:
             if len(string) > 0 and string[0] == "\b":
                 # Need to erase some previously-written bytes due to a msg delimiter.
                 if captureFileSize >= len(string):
@@ -430,7 +439,7 @@ def tee(string="", end="\n"):
                 captureFile.flush()
                 captureFileSize += len(string) + len(end)
 
-        if watching:
+        if watching and output != teeOutputs.onlyFile:
             print(string, end=end, flush=True)
 
 
@@ -442,6 +451,7 @@ def capture_traffic_start(args=""):
     global replacePatterns
     global captureFile
     global captureFileSize
+    global captureStarted
 
     if len(args) != 1:
         print("Incorrect number of args, type \"help\" for usage")
@@ -460,6 +470,8 @@ def capture_traffic_start(args=""):
         print("File \"%s\" could not be opened: %s" % (capture_file_name, str(e)))
         return
 
+    global captureStarted
+    captureStarted = True
     print("Saving captured traffic to \"%s\"..." % capture_file_name)
 
 
@@ -470,8 +482,10 @@ def capture_traffic_start(args=""):
 def capture_traffic_stop(args=""):
     global captureFile
     global captureFileSize
+    global captureStarted
 
     # Close ports and capture file, if applicable.
+    captureStarted = False
     if captureFile:
         captureFile.close()
         captureFile = None
@@ -572,7 +586,8 @@ def replay_traffic(args=""):
     with writerLock[outp]:
         print("Replaying data from %s, press CTRL-C to exit watch mode..." % direction, end="")
         global watching
-        watching = True
+        global watchingStarted
+        watching = watchingStarted = True
         curr_direction = "unknown"
         line_num = 1
         for line in replay_file_contents:
@@ -583,7 +598,6 @@ def replay_traffic(args=""):
             if line_num in lines and curr_direction == direction:
                 line_data = list(map(lambda b: int(b, 16), line[start_index:].rstrip().split()))
                 line_data = replace_patterns_if_matched(line_data, replacePatterns[p], replaceChecksums[p])
-                # print("%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "))
                 processor.write(out_dev_id, bytes(line_data))
                 tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "), "")
             line_num += 1
@@ -593,16 +607,16 @@ def replay_traffic(args=""):
 
 
 def data_received_callback_a(data):
-    # print("PJB: callbackA, data = %s, type %s" % (str(data), str(type(data))))
     data_received_callback(data, "A")
     return data
 
 
 def data_received_callback_b(data):
-    # print("PJB: callbackB, data = %s, type %s" % (str(data), str(type(data))))
     data_received_callback(list(data), "B")
     return data
 
+def data_direction_str(inPort, outPort):
+    return "%c -> %c: " % (inPort, outPort)
 
 lastPrinted = "None"
 portDataOutBuffer = {}
@@ -617,6 +631,8 @@ def data_received_callback(data, p):
     global lastPrinted
     global portDataOutBuffer
     global bytesOnLine
+    global watchingStarted
+    global captureStarted
 
     # Alternate reading data from each port in the connection...
     if p == "A":
@@ -633,10 +649,21 @@ def data_received_callback(data, p):
                 # Last data we printed was from the other port, print our current port source.
                 if lastPrinted != "None":
                     tee()
-                tee("%c -> %c: " % (p, outp), "")
+                tee(data_direction_str(p, outp), "")
                 lastPrinted = p
                 bytesOnLine = 0
+                watchingStarted = captureStarted = False
             else:
+                if watchingStarted == True:
+                    # This is the first byte since we started watching the stream, print the direction
+                    # to the terminal output...
+                    tee(data_direction_str(p, outp), "", teeOutputs.onlyDisplay)
+                    watchingStarted = False
+                if captureStarted == True:
+                    # This is the first byte since we started capturing the stream, print the direction
+                    # to the terminal output...
+                    tee(data_direction_str(p, outp), "", teeOutputs.onlyFile)
+                    captureStarted = False
                 if len(delimMatched[p]["end"]) > 0:
                     # The previous byte we looked at matched an end-of-message delim, go to new line.
                     tee()
@@ -774,8 +801,9 @@ def watch(args=""):
         return
 
     global watching
+    global watchingStarted
     print("Watching data passed between ports. Press CTRL-C to stop...")
-    watching = True
+    watching = watchingStarted = True
 
 
 def shutdown():
@@ -804,9 +832,10 @@ class ProxyRepl(cmd.Cmd):
             return super().onecmd(line)
         except KeyboardInterrupt:
             global watching
+            global watchingStarted
             if watching:
                 # stop watching
-                watching = False
+                watching = watchingStarted = False
                 self.stdout.write("\nWatch mode exited.\n")
                 # don't stop interpretation of commands by the interpreter
                 return False
