@@ -3,7 +3,7 @@
 # akheron - UART proxy tool for inter-chip analysis, capturing, replaying, and
 # modifying UART data!
 #
-# Copyright 2020
+# Copyright 2020, 2021
 
 import argparse
 import cmd
@@ -12,6 +12,7 @@ import operator
 import os.path
 import threading
 from enum import Enum, auto
+from typing import NamedTuple
 from time import sleep
 
 import serial
@@ -31,11 +32,26 @@ class SupportedChecksums(Enum):
     Checksum8Modulo256Plus1 = auto()
     Checksum82sComplement = auto()
 
+class TeeOutput(Enum):
+    onlyDisplay = auto()
+    onlyFile = auto()
+    both = auto()
+
+class TextRangeDisplayMode(NamedTuple):
+    start: int
+    end: int
+    mode: str
 
 # Globals #####
 version = "0.1"
 histfile = os.path.join(os.path.expanduser("~"), ".akheron_history")
 histsize = 1000
+ansi_text = {
+    "reset":     "\033[0m",
+    "bold":      "\033[1m",
+    "underline": "\033[4m",
+    "invert":    "\033[7m",
+}
 
 # Port settings, as provided via the 'portset' command.
 portSettings = {
@@ -68,6 +84,11 @@ replaceChecksums = {
     "B": None
 }
 
+# Terminal text mode to make certain text more "visually obvious".
+textMode = {
+    "replaced": "none"
+}
+
 # Temp buffers for holding incoming (RX'd) data to check against msgDelims.
 checkMsgBuffers = {
     "A": [],
@@ -78,8 +99,12 @@ checkMsgBufferMax = 0
 # When capturing to an external file
 captureFile = None
 captureFileSize = 0
+captureStarted = False
+
 trafficPassing = False
+
 watching = False
+watchingStarted = False
 
 # Resource locks
 writerLock = {
@@ -344,19 +369,26 @@ def checksum_set(args=""):
 def replace_patterns_if_matched(data, patterns, checksum_method):
     if len(patterns) == 0:
         # No patterns to match on, we're done
-        return data
+        return data, None
+    updated_text_mode_ranges = []
     for k, v in patterns.items():
         k_list = k.split(" ")
         match_list = [int(i, 16) for i in k_list]
         len_ml = len(match_list)
-        for i in range(len(data) - len_ml + 1):
+        i = 0
+        while i < (len(data) - len_ml + 1):
             if match_list == data[i:i + len_ml]:
                 data[i:i + len_ml] = [int(val, 16) for val in v]
+                if textMode["replaced"] != "none":
+                    # Start index, stop index, and the text mode to use for this range...
+                    updated_text_mode_ranges.append(TextRangeDisplayMode(i, i + len_ml, textMode["replaced"]))
                 checksum = calculate_checksum(data[:-1], checksum_method)
                 if checksum is not None:
                     data[-1] = checksum
-                break
-    return data
+                i += len(v)
+            else:
+                i += 1
+    return data, updated_text_mode_ranges
 
 
 def calculate_checksum(data, checksum_method):
@@ -413,11 +445,11 @@ def check_msg(port, start_or_end, byte=None):
 # string: string value to display+write
 # end: trailing character for 'string'
 # Returns: n/a
-def tee(string="", end="\n"):
+def tee(string="", end="\n", output=TeeOutput.both):
     with teeLock:
         global captureFileSize
 
-        if captureFile:
+        if captureFile and output != TeeOutput.onlyDisplay:
             if len(string) > 0 and string[0] == "\b":
                 # Need to erase some previously-written bytes due to a msg delimiter.
                 if captureFileSize >= len(string):
@@ -430,7 +462,7 @@ def tee(string="", end="\n"):
                 captureFile.flush()
                 captureFileSize += len(string) + len(end)
 
-        if watching:
+        if watching and output != TeeOutput.onlyFile:
             print(string, end=end, flush=True)
 
 
@@ -442,6 +474,7 @@ def capture_traffic_start(args=""):
     global replacePatterns
     global captureFile
     global captureFileSize
+    global captureStarted
 
     if len(args) != 1:
         print("Incorrect number of args, type \"help\" for usage")
@@ -460,6 +493,8 @@ def capture_traffic_start(args=""):
         print("File \"%s\" could not be opened: %s" % (capture_file_name, str(e)))
         return
 
+    global captureStarted
+    captureStarted = True
     print("Saving captured traffic to \"%s\"..." % capture_file_name)
 
 
@@ -470,8 +505,10 @@ def capture_traffic_start(args=""):
 def capture_traffic_stop(args=""):
     global captureFile
     global captureFileSize
+    global captureStarted
 
     # Close ports and capture file, if applicable.
+    captureStarted = False
     if captureFile:
         captureFile.close()
         captureFile = None
@@ -500,6 +537,28 @@ def dump_capture(args=""):
     for line in dump_file_contents:
         print("%5u: %s" % (line_num, line.rstrip()))
         line_num += 1
+
+def updated_text_output_str(data, updated_text_mode_ranges):
+    outstr = ""
+    index = 0
+    if updated_text_mode_ranges and len(updated_text_mode_ranges) > 0:
+        for b in data:
+            for r in updated_text_mode_ranges:
+                if r.start == index:
+                    # Reached the start of a range of replaced text, set to colorized text...
+                    outstr += ansi_text[r.mode]
+                    break
+            outstr += format("0x%02x" % int(b))
+            for r in updated_text_mode_ranges:
+                if r.end == index:
+                    # Reached the end of a range of replaced text, reset to normal text...
+                    outstr += ansi_text["reset"]
+                    break
+            outstr += " "
+            index += 1
+    else:
+        outstr = " ".join(format("0x%02x" % int(n)) for n in data) + " "
+    return outstr
 
 
 # Replaying traffic between two ports.
@@ -572,7 +631,8 @@ def replay_traffic(args=""):
     with writerLock[outp]:
         print("Replaying data from %s, press CTRL-C to exit watch mode..." % direction, end="")
         global watching
-        watching = True
+        global watchingStarted
+        watching = watchingStarted = True
         curr_direction = "unknown"
         line_num = 1
         for line in replay_file_contents:
@@ -582,10 +642,10 @@ def replay_traffic(args=""):
                 curr_direction = line[0:start_index - 1]
             if line_num in lines and curr_direction == direction:
                 line_data = list(map(lambda b: int(b, 16), line[start_index:].rstrip().split()))
-                line_data = replace_patterns_if_matched(line_data, replacePatterns[p], replaceChecksums[p])
-                # print("%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "))
+                line_data, updated_text_mode_ranges = replace_patterns_if_matched(line_data, replacePatterns[p], replaceChecksums[p])
                 processor.write(out_dev_id, bytes(line_data))
-                tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "), "")
+                tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "), "", TeeOutput.onlyFile)
+                tee("\n%s: %s" % (direction, updated_text_output_str(line_data, updated_text_mode_ranges)), "", TeeOutput.onlyDisplay)
             line_num += 1
         global lastPrinted
         lastPrinted = p
@@ -593,16 +653,16 @@ def replay_traffic(args=""):
 
 
 def data_received_callback_a(data):
-    # print("PJB: callbackA, data = %s, type %s" % (str(data), str(type(data))))
     data_received_callback(data, "A")
     return data
 
 
 def data_received_callback_b(data):
-    # print("PJB: callbackB, data = %s, type %s" % (str(data), str(type(data))))
     data_received_callback(list(data), "B")
     return data
 
+def data_direction_str(inPort, outPort):
+    return "%c -> %c: " % (inPort, outPort)
 
 lastPrinted = "None"
 portDataOutBuffer = {}
@@ -617,6 +677,8 @@ def data_received_callback(data, p):
     global lastPrinted
     global portDataOutBuffer
     global bytesOnLine
+    global watchingStarted
+    global captureStarted
 
     # Alternate reading data from each port in the connection...
     if p == "A":
@@ -633,10 +695,21 @@ def data_received_callback(data, p):
                 # Last data we printed was from the other port, print our current port source.
                 if lastPrinted != "None":
                     tee()
-                tee("%c -> %c: " % (p, outp), "")
+                tee(data_direction_str(p, outp), "")
                 lastPrinted = p
                 bytesOnLine = 0
+                watchingStarted = captureStarted = False
             else:
+                if watchingStarted == True:
+                    # This is the first byte since we started watching the stream, print the direction
+                    # to the terminal output...
+                    tee(data_direction_str(p, outp), "", TeeOutput.onlyDisplay)
+                    watchingStarted = False
+                if captureStarted == True:
+                    # This is the first byte since we started capturing the stream, print the direction
+                    # to the terminal output...
+                    tee(data_direction_str(p, outp), "", TeeOutput.onlyFile)
+                    captureStarted = False
                 if len(delimMatched[p]["end"]) > 0:
                     # The previous byte we looked at matched an end-of-message delim, go to new line.
                     tee()
@@ -774,8 +847,43 @@ def watch(args=""):
         return
 
     global watching
+    global watchingStarted
     print("Watching data passed between ports. Press CTRL-C to stop...")
-    watching = True
+    watching = watchingStarted = True
+
+
+# 'textmodeget' command, allows user to output the current terminal text mode
+# Returns: n/a
+def textmode_get(args=""):
+    for m in textMode:
+        print(f"{m}: {textMode[m]}")
+
+
+# 'textmodeset' command, allows user to set terminal text mode for different operations
+# args:
+#   [0]: specifies the operation to set the textmode for
+#   [1]: specifies the supported text mode
+# Returns: n/a
+def textmode_set(args=""):
+    global textMode
+
+    if len(args) < 1:
+        print("Incorrect number of args, type \"help\" for usage")
+        return
+    operation = args[0]
+    if operation not in textMode:
+        print("Invalid \"operation\" value, type \"help\" for usage")
+        return
+    if len(args) == 2:
+        mode = args[1]
+        if mode not in ansi_text:
+            print("Invalid \"mode\" value, type \"help\" for usage")
+            return
+    else:
+        mode = "none"
+
+    textMode[operation] = mode
+    return
 
 
 def shutdown():
@@ -804,9 +912,10 @@ class ProxyRepl(cmd.Cmd):
             return super().onecmd(line)
         except KeyboardInterrupt:
             global watching
+            global watchingStarted
             if watching:
                 # stop watching
-                watching = False
+                watching = watchingStarted = False
                 self.stdout.write("\nWatch mode exited.\n")
                 # don't stop interpretation of commands by the interpreter
                 return False
@@ -1002,6 +1111,24 @@ Usage:	watch
         """
         watch(arg.split())
         watch_wait_exit()
+
+    def do_textmodeget(self, arg):
+        """
+Description: output the current text mode for terminal output
+
+Usage: textmodeget
+        """
+        textmode_get(arg.split())
+
+    def do_textmodeset(self, arg):
+        """
+Description: set text mode for terminal output
+
+Usage:	textmode <replaced> <invert | underline | bold>
+
+Example(s): textmode replaced invert
+        """
+        textmode_set(arg.split())
 
     def do_version(self, arg):
         print("v%s" % version)
