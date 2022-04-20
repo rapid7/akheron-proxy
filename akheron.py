@@ -1124,9 +1124,9 @@ Usage: textmodeget
         """
 Description: set text mode for terminal output
 
-Usage:	textmode <replaced> <invert | underline | bold>
+Usage:	textmodeset <replaced> <invert | underline | bold>
 
-Example(s): textmode replaced invert
+Example(s): textmodeset replaced invert
         """
         textmode_set(arg.split())
 
