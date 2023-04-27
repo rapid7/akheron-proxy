@@ -43,7 +43,7 @@ class TextRangeDisplayMode(NamedTuple):
     mode: str
 
 # Globals #####
-version = "0.1"
+version = "0.2"
 histfile = os.path.join(os.path.expanduser("~"), ".akheron_history")
 histsize = 1000
 ansi_text = {
