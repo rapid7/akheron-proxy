@@ -78,10 +78,16 @@ replacePatterns = {
     "B": {}
 }
 
-# Pattern replacement/substitution checksum recalculation method, as provided via the 'checksumset' command.
+# Pattern replacement/substitution checksum recalculation method and flags, as provided via the 'checksumset' command.
 replaceChecksums = {
-    "A": None,
-    "B": None
+    "A": {
+        "method": None,
+        "excludeDelimiter": False
+    },
+    "B": {
+        "method": None,
+        "excludeDelimiter": False
+    }
 }
 
 # Terminal text mode to make certain text more "visually obvious".
@@ -329,8 +335,14 @@ def replace_set(args=""):
 # Returns: n/a
 def checksum_get(args=""):
     for p in ["A", "B"]:
-        if replaceChecksums[p]:
-            print(f"Replace on port {p} using checksum '{replaceChecksums[p].name}'")
+        if replaceChecksums[p]["method"]:
+            methodName = replaceChecksums[p]["method"].name
+            delimMsg = None
+            if replaceChecksums[p]["excludeDelimiter"]:
+                delimMsg = "excluding"
+            else:
+                delimMsg = "including"
+            print(f"Replace on port {p} using checksum '{methodName}', {delimMsg} the delimiter.")
         else:
             print(f"No replace checksum specified on port {p}")
 
@@ -339,6 +351,7 @@ def checksum_get(args=""):
 # args:
 #   [0]: specifies the port's ("A" or "B") traffic to apply the checksum recalculation during pattern replacements
 #   [1]: specifies the integer value or name of the checksum
+#   [2]: flag specifies if the delimiter should be included in the checksum computation. Defaults to false if not present.
 # Returns: n/a
 def checksum_set(args=""):
     global replaceChecksums
@@ -352,21 +365,32 @@ def checksum_set(args=""):
         return
 
     if len(args) < 2:
-        replaceChecksums[port] = None
+        replaceChecksums[port]["method"] = None
     else:
         try:
             try:
-                replaceChecksums[port] = SupportedChecksums(int(args[1]))
+                replaceChecksums[port]["method"] = SupportedChecksums(int(args[1]))
             except ValueError:
-                replaceChecksums[port] = SupportedChecksums[args[1]]
+                replaceChecksums[port]["method"] = SupportedChecksums[args[1]]
         except (ValueError, KeyError):
             print("Invalid checksum specified. Supported checksums:")
             for checksum in SupportedChecksums:
                 print(f"{checksum.value}: {checksum.name}")
+
+    if len(args) < 3:
+        replaceChecksums[port]["excludeDelimiter"] = False
+    else:
+        replaceChecksums[port]["excludeDelimiter"] = args[2].lower() in ("true", "t", "1")
+
+    # print(f"!!! DEBUG: replaceChecksums: {replaceChecksums}")
+
     return
 
 
-def replace_patterns_if_matched(data, patterns, checksum_method):
+def replace_patterns_if_matched(data, patterns, replaceChecksumOptions, port):
+    checksum_method = replaceChecksumOptions["method"]
+    exclude_delimiter = replaceChecksumOptions["excludeDelimiter"]
+
     if len(patterns) == 0:
         # No patterns to match on, we're done
         return data, None
@@ -382,13 +406,35 @@ def replace_patterns_if_matched(data, patterns, checksum_method):
                 if textMode["replaced"] != "none":
                     # Start index, stop index, and the text mode to use for this range...
                     updated_text_mode_ranges.append(TextRangeDisplayMode(i, i + len_ml, textMode["replaced"]))
-                checksum = calculate_checksum(data[:-1], checksum_method)
+                if exclude_delimiter:
+                    idx_after_delim = find_position_after_start_delimiter(data, port)
+                    checksum = calculate_checksum(data[idx_after_delim:-1], checksum_method)
+                else:
+                    checksum = calculate_checksum(data[:-1], checksum_method)
+
                 if checksum is not None:
                     data[-1] = checksum
                 i += len(v)
             else:
                 i += 1
     return data, updated_text_mode_ranges
+
+# Checks the data list for a matching start-of-message delimiter and returns the position after the delimiter.
+# data: list of integers representing byte values
+# port: indicates which port ("A" or "B") delimiters should be used for this check
+# Returns: int representing index after the start delimiter or 0
+def find_position_after_start_delimiter(data, port):
+    idx_after_delim = 0
+    for delim in msgDelims["start"]:
+        delim_ints = [int(i, 16) for i in delim]
+        if len(data) < len(delim_ints):
+            # data doesn't contain enough bytes to compare with the delimiter pattern
+            continue
+        elif data[0:len(delim_ints)] == delim_ints:
+            # data matches a start delimiter pattern
+            idx_after_delim = len(delim_ints)
+            break
+    return idx_after_delim
 
 
 def calculate_checksum(data, checksum_method):
@@ -642,7 +688,7 @@ def replay_traffic(args=""):
                 curr_direction = line[0:start_index - 1]
             if line_num in lines and curr_direction == direction:
                 line_data = list(map(lambda b: int(b, 16), line[start_index:].rstrip().split()))
-                line_data, updated_text_mode_ranges = replace_patterns_if_matched(line_data, replacePatterns[p], replaceChecksums[p])
+                line_data, updated_text_mode_ranges = replace_patterns_if_matched(line_data, replacePatterns[p], replaceChecksums[p], p)
                 processor.write(out_dev_id, bytes(line_data))
                 tee("\n%s: %s" % (direction, " ".join(format("0x%02x" % int(n)) for n in line_data) + " "), "", TeeOutput.onlyFile)
                 tee("\n%s: %s" % (direction, updated_text_output_str(line_data, updated_text_mode_ranges)), "", TeeOutput.onlyDisplay)
@@ -1016,10 +1062,14 @@ Description: set checksum recalculation used after message pattern replacement.
 Note: This should be used with start delim patterns since the computed
 checksum will be placed at the end of the message.
 
-Usage:	checksumset <A|B> <checksum number or name>
+Usage:	checksumset <A|B> <checksum number or name> [exclude-delimiter]
+
+Optional:
+        exclude-delimiter - flag specifies if the delimiter should be excluded from the checksum computation. Default: false
 
 Example(s): checksumset A 1
             checksumset B Checksum8Modulo256
+            checksumset B Checksum8Modulo256 true
         """
         checksum_set(arg.split())
 
