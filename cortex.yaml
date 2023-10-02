@@ -1,0 +1,15 @@
+---
+info:
+  title: Akheron Proxy
+  description: UART proxy tool for inter-chip analysis.
+  x-cortex-git:
+    github:
+      alias: r7org
+      repository: rapid7/akheron-proxy
+  x-cortex-tag: akheron-proxy
+  x-cortex-type: service
+  x-cortex-domain-parents:
+  - tag: octo-and-labs
+openapi: 3.0.1
+servers:
+- url: "/"
